@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Room Check-in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --orange:    #F46B1A;
+    --orange-dk: #C4500E;
+    --orange-lt: #FEE5D0;
+    --cream:     #FDF8F3;
+    --warm-dk:   #1A0F08;
+    --warm-md:   #5C3D28;
+    --warm-lt:   #A8754E;
+    --surface:   #FFFFFF;
+    --border:    rgba(244,107,26,0.18);
+  }
+
+  html, body {
+    min-height: 100vh;
+    background: var(--cream);
+    font-family: 'DM Sans', sans-serif;
+    color: var(--warm-dk);
+  }
+
+  /* Subtle grain texture overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  /* Decorative blobs */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -120px; right: -120px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(244,107,26,0.12) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none; z-index: 0;
+  }
+
+  .page {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 64px;
+  }
+
+  /* Header */
+  .header {
+    width: 100%; max-width: 480px;
+    margin-bottom: 32px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+
+  .header-eyebrow {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--orange);
+  }
+
+  .header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(28px, 7vw, 38px);
+    line-height: 1.15;
+    color: var(--warm-dk);
+  }
+
+  .header h1 em {
+    font-style: italic;
+    color: var(--orange);
+  }
+
+  .header-sub {
+    font-size: 14px; color: var(--warm-lt);
+    margin-top: 4px;
+  }
+
+  /* Card */
+  .card {
+    width: 100%; max-width: 480px;
+    background: var(--surface);
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    padding: 28px 24px;
+    box-shadow: 0 2px 24px rgba(200,90,20,0.07), 0 1px 4px rgba(200,90,20,0.04);
+  }
+
+  /* Fields */
+  .field { margin-bottom: 24px; }
+  .field:last-of-type { margin-bottom: 0; }
+
+  .field-label {
+    display: block;
+    font-size: 13px; font-weight: 600;
+    color: var(--warm-md);
+    letter-spacing: 0.02em;
+    margin-bottom: 10px;
+  }
+
+  .field-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px;
+    background: var(--orange-lt);
+    color: var(--orange-dk);
+    border-radius: 50%;
+    font-size: 11px; font-weight: 600;
+    margin-right: 6px;
+  }
+
+  /* Toggle (Did you clean?) */
+  .toggle-wrap {
+    display: flex; gap: 10px;
+  }
+
+  .toggle-opt { flex: 1; }
+
+  .toggle-opt input[type="radio"] { display: none; }
+
+  .toggle-opt label {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 14px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 15px; font-weight: 500;
+    color: var(--warm-lt);
+    transition: all 0.18s ease;
+    user-select: none;
+  }
+
+  .toggle-opt label .icon {
+    font-size: 18px;
+    transition: transform 0.2s ease;
+  }
+
+  .toggle-opt input:checked + label {
+    border-color: var(--orange);
+    background: var(--orange-lt);
+    color: var(--orange-dk);
+    box-shadow: 0 0 0 3px rgba(244,107,26,0.1);
+  }
+
+  .toggle-opt input:checked + label .icon {
+    transform: scale(1.2);
+  }
+
+  .toggle-opt label:hover {
+    border-color: var(--orange);
+    color: var(--orange-dk);
+  }
+
+  /* Duration chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .chip-opt input[type="radio"] { display: none; }
+
+  .chip-opt label {
+    display: inline-block;
+    padding: 9px 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 50px;
+    cursor: pointer;
+    font-size: 14px; font-weight: 500;
+    color: var(--warm-lt);
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .chip-opt input:checked + label {
+    background: var(--orange);
+    border-color: var(--orange);
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(244,107,26,0.35);
+  }
+
+  .chip-opt label:hover {
+    border-color: var(--orange);
+    color: var(--orange-dk);
+  }
+
+  /* Star rating */
+  .stars {
+    display: flex; gap: 6px;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+  }
+
+  .stars input[type="radio"] { display: none; }
+
+  .stars label {
+    font-size: 32px; cursor: pointer;
+    color: #E0D5CD;
+    transition: color 0.12s, transform 0.12s;
+    line-height: 1;
+    user-select: none;
+  }
+
+  /* CSS star fill trick — highlight hovered and all siblings before it */
+  .stars label:hover,
+  .stars label:hover ~ label,
+  .stars input:checked ~ label {
+    color: var(--orange);
+  }
+
+  .stars label:hover { transform: scale(1.15); }
+
+  /* Note textarea */
+  .note-input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--warm-dk);
+    background: var(--cream);
+    resize: none;
+    transition: border-color 0.15s;
+    outline: none;
+    min-height: 80px;
+  }
+
+  .note-input::placeholder { color: var(--warm-lt); opacity: 0.7; }
+  .note-input:focus { border-color: var(--orange); background: #fff; }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 24px 0;
+  }
+
+  /* Submit */
+  .submit-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%;
+    padding: 17px;
+    background: var(--orange);
+    color: #fff;
+    border: none; border-radius: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px; font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.01em;
+    transition: background 0.15s, transform 0.12s, box-shadow 0.15s;
+    box-shadow: 0 4px 18px rgba(244,107,26,0.35);
+    margin-top: 28px;
+  }
+
+  .submit-btn:hover {
+    background: var(--orange-dk);
+    box-shadow: 0 6px 24px rgba(244,107,26,0.45);
+    transform: translateY(-1px);
+  }
+
+  .submit-btn:active { transform: translateY(0); }
+
+  .submit-btn .arrow { transition: transform 0.15s; }
+  .submit-btn:hover .arrow { transform: translateX(4px); }
+
+  /* Success state */
+  .success {
+    display: none;
+    flex-direction: column; align-items: center;
+    text-align: center; gap: 12px;
+    padding: 48px 24px;
+  }
+
+  .success-icon {
+    width: 64px; height: 64px;
+    background: var(--orange-lt);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+
+  .success h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px; color: var(--warm-dk);
+  }
+
+  .success p { font-size: 15px; color: var(--warm-lt); }
+
+  /* Date badge */
+  .date-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    background: var(--orange-lt);
+    border-radius: 50px;
+    font-size: 12px; font-weight: 600;
+    color: var(--orange-dk);
+    margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <span class="header-eyebrow">Room check-in</span>
+    <h1>How'd the<br><em>cleaning go?</em></h1>
+    <p class="header-sub">Takes about 10 seconds. Promise.</p>
+  </div>
+
+  <div class="card" id="form-card">
+
+    <div class="date-badge">
+      📅 <span id="today-date"></span>
+    </div>
+
+    <!--
+      ============================================================
+      HOW TO CONNECT THIS TO YOUR GOOGLE FORM:
+      
+      1. Create your Google Form with these questions
+      2. Go to ⋮ menu → Get pre-filled link
+      3. Fill in dummy values, click Get Link, copy it
+      4. Change "viewform" to "formResponse" in the URL
+      5. Set the <form action="..."> below to that URL
+      6. Get the "entry.XXXXXXXXX" IDs from the pre-filled URL
+         and set them as the name="" attributes on each input
+      
+      Example action URL:
+      https://docs.google.com/forms/d/e/YOUR_FORM_ID/formResponse
+      ============================================================
+    -->
+    <form
+      id="cleaning-form"
+      action="https://docs.google.com/forms/d/e/1FAIpQLSc-5WSfdZMEZRpNgQvQRWsR_mbc4YyWqR7odMImFKvYFvufXg/formResponse"
+      method="POST"
+      target="hidden-iframe"
+      onsubmit="handleSubmit(event)"
+    >
+
+      <!-- Q1: Did you clean? -->
+      <div class="field">
+        <label class="field-label">
+          <span class="field-num">1</span>Did you clean today?
+        </label>
+        <div class="toggle-wrap">
+          <div class="toggle-opt">
+            <!-- Replace entry.XXXXXXXXX with your actual field ID -->
+            <input type="radio" name="entry.1458091780" id="yes" value="Yes" required>
+            <label for="yes"><span class="icon">✓</span> Yes, I did</label>
+          </div>
+          <div class="toggle-opt">
+            <input type="radio" name="entry.1458091780" id="no" value="No">
+            <label for="no"><span class="icon">✗</span> Not today</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Q2: Duration -->
+      <div class="field">
+        <label class="field-label">
+          <span class="field-num">2</span>How long did you clean?
+        </label>
+        <div class="chips">
+          <div class="chip-opt">
+            <!-- Replace entry.XXXXXXXXX with your actual field ID -->
+            <input type="radio" name="entry.814800859" id="d5"  value="Under 10 min">
+            <label for="d5">Under 10 min</label>
+          </div>
+          <div class="chip-opt">
+            <input type="radio" name="entry.814800859" id="d10" value="10–15 min">
+            <label for="d10">10–15 min</label>
+          </div>
+          <div class="chip-opt">
+            <input type="radio" name="entry.814800859" id="d20" value="15–30 min">
+            <label for="d20">15–30 min</label>
+          </div>
+          <div class="chip-opt">
+            <input type="radio" name="entry.814800859" id="d30" value="30 min+">
+            <label for="d30">30 min+</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Q3: Productivity stars -->
+      <div class="field">
+        <label class="field-label">
+          <span class="field-num">3</span>How productive was it?
+        </label>
+        <!-- Stars go right-to-left in DOM for the CSS hover trick -->
+        <div class="stars">
+          <input type="radio" name="entry.1170672298" id="s5" value="5">
+          <label for="s5" title="5 stars">★</label>
+          <input type="radio" name="entry.1170672298" id="s4" value="4">
+          <label for="s4" title="4 stars">★</label>
+          <input type="radio" name="entry.1170672298" id="s3" value="3">
+          <label for="s3" title="3 stars">★</label>
+          <input type="radio" name="entry.1170672298" id="s2" value="2">
+          <label for="s2" title="2 stars">★</label>
+          <input type="radio" name="entry.1170672298" id="s1" value="1">
+          <label for="s1" title="1 star">★</label>
+        </div>
+      </div>
+
+      <!-- Optional note -->
+      <div class="field">
+        <label class="field-label" for="note">
+          <span class="field-num">+</span>Any notes? <span style="font-weight:400;color:var(--warm-lt)">(optional)</span>
+        </label>
+        <!-- Replace entry.XXXXXXXXX with your actual field ID -->
+        <textarea
+          class="note-input"
+          name="entry.1609035131"
+          id="note"
+          placeholder="e.g. Vacuumed, changed sheets..."
+          rows="3"
+        ></textarea>
+      </div>
+
+      <button type="submit" class="submit-btn">
+        Log it <span class="arrow">→</span>
+      </button>
+
+    </form>
+
+    <!-- Success message (shown after submit) -->
+    <div class="success" id="success-msg">
+      <div class="success-icon">🧹</div>
+      <h2>Logged!</h2>
+      <p>Thanks for checking in. See you tomorrow.</p>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Hidden iframe absorbs the Google Form POST response -->
+<iframe name="hidden-iframe" style="display:none"></iframe>
+
+<script>
+  // Show today's date
+  const d = new Date();
+  document.getElementById('today-date').textContent =
+    d.toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
+
+  function handleSubmit(e) {
+    e.preventDefault();
+
+    const form = document.getElementById('cleaning-form');
+    const data = new FormData(form);
+
+    fetch(form.action, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: data
+    }).then(() => {
+      form.style.display = 'none';
+      const s = document.getElementById('success-msg');
+      s.style.display = 'flex';
+    }).catch(() => {
+      form.style.display = 'none';
+      const s = document.getElementById('success-msg');
+      s.style.display = 'flex';
+    });
+  }
+</script>
+</body>
+</html>
