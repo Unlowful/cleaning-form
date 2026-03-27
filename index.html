@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Room Check-in">
+<meta name="theme-color" content="#FDF8F3">
+<title>Room Check-in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --orange:      #F46B1A;
+  --orange-dk:   #C4500E;
+  --orange-lt:   #FEE5D0;
+  --cream:       #FDF8F3;
+  --warm-dk:     #1A0F08;
+  --warm-md:     #5C3D28;
+  --warm-lt:     #A8754E;
+  --surface:     #FFFFFF;
+  --border:      rgba(244,107,26,0.18);
+  --bg:          #1A0F08;
+  --surface-dk:  #2E1A0E;
+  --surface2-dk: #3A2212;
+  --warm-md-dk:  #C9915F;
+  --text-dk:     #F5EDE4;
+  --border-dk:   rgba(244,107,26,0.15);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top:    env(safe-area-inset-top, 0px);
+}
+
+html { height: 100%; -webkit-text-size-adjust: 100%; }
+body { min-height: 100dvh; font-family: 'DM Sans', sans-serif; overscroll-behavior: none; }
+
+.page { display: none; min-height: 100dvh; }
+.page.active { display: block; }
+
+/* ════════════════════════════════════════
+   CHECK-IN PAGE
+════════════════════════════════════════ */
+#page-checkin { background: var(--cream); color: var(--warm-dk); position: relative; }
+
+#page-checkin::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+#page-checkin::after {
+  content: '';
+  position: fixed; top: -80px; right: -80px;
+  width: 260px; height: 260px;
+  background: radial-gradient(circle, rgba(244,107,26,0.13) 0%, transparent 70%);
+  border-radius: 50%; pointer-events: none; z-index: 0;
+}
+
+.checkin-inner {
+  position: relative; z-index: 1;
+  min-height: 100dvh;
+  display: flex; flex-direction: column;
+  padding: calc(16px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+  max-width: 480px; margin: 0 auto;
+}
+
+.ci-header {
+  padding: 8px 4px 20px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.header-left { display: flex; flex-direction: column; gap: 2px; }
+.header-eyebrow {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--orange);
+}
+.header-left h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(24px, 6.5vw, 32px); line-height: 1.1; color: var(--warm-dk);
+}
+.header-left h1 em { font-style: italic; color: var(--orange); }
+.header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.date-badge {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 11px; background: var(--orange-lt); border-radius: 50px;
+  font-size: 11px; font-weight: 600; color: var(--orange-dk); white-space: nowrap;
+}
+.stats-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 11px; background: var(--warm-dk); border-radius: 50px;
+  font-size: 11px; font-weight: 600; color: #fff;
+  border: none; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card {
+  flex: 1; background: var(--surface); border-radius: 24px;
+  border: 1px solid var(--border); padding: 24px 20px;
+  box-shadow: 0 4px 32px rgba(200,90,20,0.08), 0 1px 4px rgba(200,90,20,0.04);
+  display: flex; flex-direction: column;
+  animation: fadeUp 0.35s ease both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fields { display: flex; flex-direction: column; flex: 1; }
+.field { padding: 18px 0; border-bottom: 1px solid var(--border); }
+.field:first-of-type { padding-top: 4px; }
+.field:last-of-type  { border-bottom: none; padding-bottom: 4px; }
+.field-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 600; color: var(--warm-md); margin-bottom: 14px;
+}
+.field-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  background: var(--orange-lt); color: var(--orange-dk);
+  border-radius: 50%; font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.toggle-wrap { display: flex; gap: 10px; }
+.toggle-opt  { flex: 1; }
+.toggle-opt input[type="radio"] { display: none; }
+.toggle-opt label {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 18px 12px; border: 2px solid var(--border); border-radius: 16px;
+  cursor: pointer; font-size: 14px; font-weight: 600; color: var(--warm-lt);
+  transition: all 0.15s ease; user-select: none;
+  -webkit-tap-highlight-color: transparent; min-height: 82px;
+}
+.toggle-opt label .icon { font-size: 26px; line-height: 1; transition: transform 0.2s ease; }
+.toggle-opt input:checked + label {
+  border-color: var(--orange); background: var(--orange-lt); color: var(--orange-dk);
+  box-shadow: 0 0 0 3px rgba(244,107,26,0.12);
+}
+.toggle-opt input:checked + label .icon { transform: scale(1.15); }
+.chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.chip-opt input[type="radio"] { display: none; }
+.chip-opt label {
+  display: flex; align-items: center; justify-content: center;
+  padding: 14px 10px; border: 2px solid var(--border); border-radius: 14px;
+  cursor: pointer; font-size: 14px; font-weight: 500; color: var(--warm-lt);
+  transition: all 0.15s ease; user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.chip-opt input:checked + label {
+  background: var(--orange); border-color: var(--orange); color: #fff;
+  box-shadow: 0 2px 12px rgba(244,107,26,0.35);
+}
+.stars { display: flex; gap: 2px; flex-direction: row-reverse; justify-content: flex-end; }
+.stars input[type="radio"] { display: none; }
+.stars label {
+  font-size: 44px; cursor: pointer; color: #E0D5CD;
+  transition: color 0.1s, transform 0.1s; line-height: 1;
+  user-select: none; -webkit-tap-highlight-color: transparent; padding: 2px;
+}
+.stars label:hover, .stars label:hover ~ label, .stars input:checked ~ label { color: var(--orange); }
+.stars label:active { transform: scale(0.9); }
+.note-input {
+  width: 100%; padding: 14px; border: 2px solid var(--border); border-radius: 14px;
+  font-family: 'DM Sans', sans-serif; font-size: 16px;
+  color: var(--warm-dk); background: var(--cream);
+  resize: none; outline: none; min-height: 88px;
+  transition: border-color 0.15s; -webkit-appearance: none;
+}
+.note-input::placeholder { color: var(--warm-lt); opacity: 0.7; }
+.note-input:focus { border-color: var(--orange); background: #fff; }
+.submit-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 20px; background: var(--orange); color: #fff;
+  border: none; border-radius: 18px;
+  font-family: 'DM Sans', sans-serif; font-size: 17px; font-weight: 700;
+  cursor: pointer; transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+  box-shadow: 0 4px 20px rgba(244,107,26,0.4); margin-top: 20px;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.submit-btn:active { background: var(--orange-dk); transform: scale(0.97); }
+.submit-btn:disabled { opacity: 0.6; pointer-events: none; }
+.success {
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 16px; flex: 1; padding: 40px 24px;
+}
+.success-icon {
+  width: 80px; height: 80px; background: var(--orange-lt);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 36px; animation: pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes pop {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.success h2 { font-family: 'DM Serif Display', serif; font-size: 32px; color: var(--warm-dk); }
+.success p  { font-size: 16px; color: var(--warm-lt); line-height: 1.5; }
+.view-stats-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 14px 24px; background: var(--warm-dk); color: #fff;
+  border-radius: 14px; border: none; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; margin-top: 8px;
+}
+
+/* ════════════════════════════════════════
+   STATS PAGE
+════════════════════════════════════════ */
+#page-stats { background: var(--bg); color: var(--text-dk); position: relative; }
+#page-stats::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+#page-stats::after {
+  content: '';
+  position: fixed; bottom: -100px; left: -100px;
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(244,107,26,0.1) 0%, transparent 70%);
+  border-radius: 50%; pointer-events: none; z-index: 0;
+}
+
+.stats-inner {
+  position: relative; z-index: 1;
+  padding: calc(16px + var(--safe-top)) 16px calc(32px + var(--safe-bottom));
+  max-width: 480px; margin: 0 auto;
+}
+.st-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 8px 4px 24px; gap: 12px;
+}
+.st-header-left { display: flex; flex-direction: column; gap: 2px; }
+.st-eyebrow {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--orange);
+}
+.st-header-left h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(24px, 6.5vw, 32px); line-height: 1.1; color: var(--text-dk);
+}
+.st-header-left h1 em { font-style: italic; color: var(--orange); }
+.back-btn {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 8px 14px; background: var(--surface-dk); border-radius: 50px;
+  font-size: 12px; font-weight: 600; color: var(--warm-md-dk);
+  border: 1px solid var(--border-dk); cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  -webkit-tap-highlight-color: transparent; margin-top: 4px;
+}
+
+.loading {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 80px 24px; text-align: center;
+}
+.spinner {
+  width: 36px; height: 36px; border: 3px solid var(--surface2-dk);
+  border-top-color: var(--orange); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading p { font-size: 14px; color: var(--warm-lt); }
+
+.stats-content { display: none; flex-direction: column; gap: 16px; }
+
+.filter-tabs {
+  display: flex; gap: 8px;
+  background: var(--surface-dk); border-radius: 14px; padding: 4px;
+}
+.tab-btn {
+  flex: 1; padding: 10px 8px; background: transparent; border: none; border-radius: 10px;
+  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+  color: var(--warm-lt); cursor: pointer; transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.tab-btn.active { background: var(--orange); color: #fff; box-shadow: 0 2px 10px rgba(244,107,26,0.4); }
+
+.stat-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stat-card-full { grid-column: 1 / -1; }
+.stat-card {
+  background: var(--surface-dk); border-radius: 18px;
+  border: 1px solid var(--border-dk); padding: 18px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+  animation: fadeUp 0.3s ease both;
+}
+.stat-card:nth-child(2) { animation-delay: 0.05s; }
+.stat-card:nth-child(3) { animation-delay: 0.10s; }
+.stat-card:nth-child(4) { animation-delay: 0.15s; }
+.stat-card:nth-child(5) { animation-delay: 0.20s; }
+.stat-label {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--warm-lt);
+}
+.stat-value { font-family: 'DM Serif Display', serif; font-size: 36px; line-height: 1; color: var(--text-dk); }
+.stat-value span { font-size: 16px; color: var(--warm-md-dk); }
+.stat-sub { font-size: 12px; color: var(--warm-lt); margin-top: 2px; }
+.stat-accent { color: var(--orange); }
+
+/* ── Chart card with time-range switcher ── */
+.chart-card {
+  background: var(--surface-dk); border-radius: 18px;
+  border: 1px solid var(--border-dk); padding: 20px 16px;
+  animation: fadeUp 0.3s ease 0.25s both;
+}
+.chart-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+}
+.chart-title { font-size: 13px; font-weight: 600; color: var(--warm-md-dk); letter-spacing: 0.04em; }
+
+/* Pill switcher */
+.time-range-tabs {
+  display: flex; gap: 2px;
+  background: var(--surface2-dk); border-radius: 10px; padding: 3px;
+}
+.tr-btn {
+  padding: 5px 11px; background: transparent; border: none; border-radius: 8px;
+  font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600;
+  color: var(--warm-lt); cursor: pointer; transition: all 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.tr-btn.active {
+  background: var(--orange); color: #fff;
+  box-shadow: 0 1px 8px rgba(244,107,26,0.5);
+}
+.chart-wrap { position: relative; height: 180px; }
+
+.person-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.person-card {
+  background: var(--surface-dk); border-radius: 18px;
+  border: 1px solid var(--border-dk); padding: 18px 16px;
+  animation: fadeUp 0.3s ease 0.3s both;
+}
+.person-card:nth-child(2) { animation-delay: 0.35s; }
+.person-name { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--text-dk); margin-bottom: 12px; }
+.person-stat { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.person-stat:last-of-type { margin-bottom: 0; }
+.person-stat-label { font-size: 12px; color: var(--warm-lt); }
+.person-stat-val   { font-size: 14px; font-weight: 700; color: var(--text-dk); }
+.progress-bar { height: 6px; background: var(--surface2-dk); border-radius: 3px; margin-top: 12px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--orange); border-radius: 3px; transition: width 0.8s cubic-bezier(0.34,1.56,0.64,1); }
+
+.log-card {
+  background: var(--surface-dk); border-radius: 18px;
+  border: 1px solid var(--border-dk); padding: 20px 16px;
+  animation: fadeUp 0.3s ease 0.4s both;
+}
+.log-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--border-dk);
+}
+.log-item:last-child { border-bottom: none; padding-bottom: 0; }
+.log-item:first-child { padding-top: 0; }
+.log-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.log-dot.yes { background: var(--orange); }
+.log-dot.no  { background: var(--surface2-dk); border: 2px solid var(--warm-lt); }
+.log-info { flex: 1; min-width: 0; }
+.log-name  { font-size: 13px; font-weight: 600; color: var(--text-dk); }
+.log-meta  { font-size: 11px; color: var(--warm-lt); margin-top: 1px; }
+.log-right { text-align: right; flex-shrink: 0; }
+.log-stars { font-size: 11px; color: var(--orange); letter-spacing: -1px; }
+.log-date  { font-size: 11px; color: var(--warm-lt); margin-top: 1px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ CHECK-IN PAGE ══════════════ -->
+<div class="page active" id="page-checkin">
+<div class="checkin-inner">
+
+  <div class="ci-header">
+    <div class="header-left">
+      <span class="header-eyebrow">Room check-in</span>
+      <h1>How'd the<br><em>cleaning go?</em></h1>
+    </div>
+    <div class="header-right">
+      <div class="date-badge">📅 <span id="today-date"></span></div>
+      <button class="stats-link" onclick="showStats()">📊 Stats</button>
+    </div>
+  </div>
+
+  <div class="card" id="form-card">
+    <form id="cleaning-form">
+      <div class="fields">
+
+        <div class="field">
+          <div class="field-label"><span class="field-num">👤</span>Who are you?</div>
+          <div class="toggle-wrap">
+            <div class="toggle-opt">
+              <input type="radio" name="name" id="liam" value="Liam" required>
+              <label for="liam"><span class="icon">🙋</span>Liam</label>
+            </div>
+            <div class="toggle-opt">
+              <input type="radio" name="name" id="josiah" value="Josiah">
+              <label for="josiah"><span class="icon">🙋</span>Josiah</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label"><span class="field-num">1</span>Did you clean today?</div>
+          <div class="toggle-wrap">
+            <div class="toggle-opt">
+              <input type="radio" name="cleaned" id="yes" value="Yes" required>
+              <label for="yes"><span class="icon">✅</span>Yes, I did</label>
+            </div>
+            <div class="toggle-opt">
+              <input type="radio" name="cleaned" id="no" value="No">
+              <label for="no"><span class="icon">❌</span>Not today</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label"><span class="field-num">2</span>How long did you clean?</div>
+          <div class="chips">
+            <div class="chip-opt"><input type="radio" name="duration" id="d5"  value="Under 10 min"><label for="d5">Under 10 min</label></div>
+            <div class="chip-opt"><input type="radio" name="duration" id="d10" value="10–15 min">  <label for="d10">10–15 min</label></div>
+            <div class="chip-opt"><input type="radio" name="duration" id="d20" value="15–30 min">  <label for="d20">15–30 min</label></div>
+            <div class="chip-opt"><input type="radio" name="duration" id="d30" value="30 min+">    <label for="d30">30 min+</label></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label"><span class="field-num">3</span>How productive was it?</div>
+          <div class="stars">
+            <input type="radio" name="stars" id="s5" value="5"><label for="s5">★</label>
+            <input type="radio" name="stars" id="s4" value="4"><label for="s4">★</label>
+            <input type="radio" name="stars" id="s3" value="3"><label for="s3">★</label>
+            <input type="radio" name="stars" id="s2" value="2"><label for="s2">★</label>
+            <input type="radio" name="stars" id="s1" value="1"><label for="s1">★</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <span class="field-num">+</span>Any notes?
+            <span style="font-weight:400;color:var(--warm-lt)">(optional)</span>
+          </div>
+          <textarea class="note-input" name="notes" id="note" placeholder="e.g. Vacuumed, changed sheets..." rows="3"></textarea>
+        </div>
+
+      </div>
+      <button type="submit" class="submit-btn" id="submit-btn">Log it →</button>
+    </form>
+
+    <div class="success" id="success-msg">
+      <div class="success-icon">🧹</div>
+      <h2>Logged!</h2>
+      <p>Thanks for checking in.<br>See you tomorrow.</p>
+      <button class="view-stats-btn" onclick="showStats()">View your stats →</button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════ STATS PAGE ══════════════ -->
+<div class="page" id="page-stats">
+<div class="stats-inner">
+
+  <div class="st-header">
+    <div class="st-header-left">
+      <span class="st-eyebrow">Dashboard</span>
+      <h1>Room <em>Stats</em></h1>
+    </div>
+    <button class="back-btn" onclick="showCheckin()">← Log</button>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Loading your stats…</p>
+  </div>
+
+  <div class="stats-content" id="stats-content">
+
+    <div class="filter-tabs">
+      <button class="tab-btn active" onclick="setFilter('all',this)">Everyone</button>
+      <button class="tab-btn" onclick="setFilter('Liam',this)">Liam</button>
+      <button class="tab-btn" onclick="setFilter('Josiah',this)">Josiah</button>
+    </div>
+
+    <div class="stat-cards" id="stat-cards"></div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">🗓 Cleaning activity</div>
+        <div class="time-range-tabs">
+          <button class="tr-btn active" onclick="setTimeRange('week',this)">Week</button>
+          <button class="tr-btn"        onclick="setTimeRange('month',this)">Month</button>
+          <button class="tr-btn"        onclick="setTimeRange('year',this)">Year</button>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="activityChart"></canvas>
+      </div>
+    </div>
+
+    <div class="person-cards" id="person-cards"></div>
+
+    <div class="log-card">
+      <div class="chart-title" style="margin-bottom:16px">🕒 Recent activity</div>
+      <div id="recent-log"></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+const SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbzsCdgVynr3gLkovl3EMhkITHzGPPtWqGYpbCT_LqHFwys1AzrOmrJRiw0pWOGxERsEVQ/exec';
+const STORAGE_KEY = 'roomCheckinData';
+
+// Date badge
+const _d = new Date();
+document.getElementById('today-date').textContent =
+  _d.toLocaleDateString('en-CA', { weekday:'short', month:'short', day:'numeric' });
+
+// ── Page navigation ──
+function showStats() {
+  document.getElementById('page-checkin').classList.remove('active');
+  document.getElementById('page-stats').classList.add('active');
+  window.scrollTo(0,0);
+  loadStats();
+}
+function showCheckin() {
+  document.getElementById('page-stats').classList.remove('active');
+  document.getElementById('page-checkin').classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ── Form submit → save to localStorage + fire Google Sheet ──
+document.getElementById('cleaning-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  const form = new FormData(this);
+  const entry = {
+    date:     new Date().toISOString(),
+    name:     form.get('name')     || '',
+    cleaned:  form.get('cleaned')  || '',
+    duration: form.get('duration') || '',
+    stars:    form.get('stars')    || '',
+    notes:    form.get('notes')    || ''
+  };
+
+  // localStorage (primary data source for stats)
+  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  stored.push(entry);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+
+  // Google Sheets (best-effort backup)
+  try {
+    fetch(SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(entry).toString()
+    }).catch(()=>{});
+  } catch(_) {}
+
+  document.getElementById('cleaning-form').style.display = 'none';
+  document.getElementById('success-msg').style.display   = 'flex';
+});
+
+// ── Stats state ──
+let allData       = [];
+let currentFilter = 'all';
+let timeRange     = 'week';
+let chart         = null;
+
+function loadStats() {
+  document.getElementById('loading').style.display       = 'flex';
+  document.getElementById('stats-content').style.display = 'none';
+
+  const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  allData = raw.filter(r => r.date).sort((a,b) => new Date(a.date) - new Date(b.date));
+
+  document.getElementById('loading').style.display       = 'none';
+  document.getElementById('stats-content').style.display = 'flex';
+  render();
+}
+
+function setFilter(name, btn) {
+  currentFilter = name;
+  document.querySelectorAll('.filter-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function setTimeRange(range, btn) {
+  timeRange = range;
+  document.querySelectorAll('.tr-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderChart(filtered());
+}
+
+function filtered() {
+  return currentFilter === 'all' ? allData : allData.filter(r => r.name === currentFilter);
+}
+
+// ── Helpers ──
+function calcStreak(rows) {
+  const cleaned = rows.filter(r => r.cleaned === 'Yes');
+  if (!cleaned.length) return 0;
+  const days = [...new Set(cleaned.map(r => {
+    const d = new Date(r.date);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  }))].sort().reverse();
+  let s = 1;
+  for (let i = 1; i < days.length; i++) {
+    if ((new Date(days[i-1]) - new Date(days[i])) / 864e5 <= 1.5) s++;
+    else break;
+  }
+  return s;
+}
+
+function calcBestStreak(rows) {
+  const cleaned = rows.filter(r => r.cleaned === 'Yes');
+  if (!cleaned.length) return 0;
+  const days = [...new Set(cleaned.map(r => {
+    const d = new Date(r.date);
+    return `${d.getFullYear()}-${String(d.getMonth()).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }))].sort();
+  let best = 1, cur = 1;
+  for (let i = 1; i < days.length; i++) {
+    if ((new Date(days[i]) - new Date(days[i-1])) / 864e5 <= 1.5) { cur++; best = Math.max(best,cur); }
+    else cur = 1;
+  }
+  return best;
+}
+
+function avgStars(rows) {
+  const rated = rows.filter(r => r.stars && r.cleaned === 'Yes');
+  if (!rated.length) return '—';
+  return (rated.reduce((s,r) => s + Number(r.stars), 0) / rated.length).toFixed(1);
+}
+
+// ── Render ──
+function render() {
+  const rows      = filtered();
+  const cleaned   = rows.filter(r => r.cleaned === 'Yes');
+  const total     = rows.length;
+  const rate      = total ? Math.round((cleaned.length / total) * 100) : 0;
+  const streak    = calcStreak(rows);
+  const best      = calcBestStreak(rows);
+  const avg       = avgStars(rows);
+
+  document.getElementById('stat-cards').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Days cleaned</div>
+      <div class="stat-value">${cleaned.length}</div>
+      <div class="stat-sub">of ${total} logged</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Clean rate</div>
+      <div class="stat-value">${rate}<span>%</span></div>
+      <div class="stat-sub">${rate>=70?'🔥 Great job!':rate>=40?'💪 Keep going':'😅 Room needs help'}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">🔥 Current streak</div>
+      <div class="stat-value stat-accent">${streak}</div>
+      <div class="stat-sub">day${streak!==1?'s':''} in a row</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">🏆 Best streak</div>
+      <div class="stat-value">${best}</div>
+      <div class="stat-sub">day${best!==1?'s':''} record</div>
+    </div>
+    <div class="stat-card stat-card-full">
+      <div class="stat-label">⭐ Avg productivity</div>
+      <div class="stat-value">${avg}<span>${avg!=='—'?' / 5':''}</span></div>
+      <div class="stat-sub">${avg!=='—'?'★'.repeat(Math.round(Number(avg))):'No ratings yet'}</div>
+    </div>
+  `;
+
+  renderChart(rows);
+  renderPersonCards();
+  renderRecent(rows);
+}
+
+// ── Chart with Week / Month / Year ──
+function renderChart(rows) {
+  const cleaned = rows.filter(r => r.cleaned === 'Yes');
+  let labels = [], data = [];
+
+  if (timeRange === 'week') {
+    // Last 7 individual days
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - i);
+      const key   = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const label = d.toLocaleDateString('en-CA', { weekday:'short' });
+      const count = cleaned.filter(r => {
+        const rd = new Date(r.date);
+        return `${rd.getFullYear()}-${rd.getMonth()}-${rd.getDate()}` === key;
+      }).length;
+      labels.push(label); data.push(count);
+    }
+
+  } else if (timeRange === 'month') {
+    // Last 4 weeks, each bar = one week
+    for (let i = 3; i >= 0; i--) {
+      const end   = new Date(); end.setHours(23,59,59,999); end.setDate(end.getDate() - i*7);
+      const start = new Date(end); start.setHours(0,0,0,0); start.setDate(start.getDate() - 6);
+      const label = `${start.getMonth()+1}/${start.getDate()}`;
+      const count = cleaned.filter(r => { const rd = new Date(r.date); return rd >= start && rd <= end; }).length;
+      labels.push(label); data.push(count);
+    }
+
+  } else {
+    // Last 12 months
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+      const yr = d.getFullYear(), mo = d.getMonth();
+      const label = d.toLocaleDateString('en-CA', { month:'short' });
+      const count = cleaned.filter(r => {
+        const rd = new Date(r.date);
+        return rd.getFullYear() === yr && rd.getMonth() === mo;
+      }).length;
+      labels.push(label); data.push(count);
+    }
+  }
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(document.getElementById('activityChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: data.map(v => v > 0 ? 'rgba(244,107,26,0.85)' : 'rgba(244,107,26,0.12)'),
+        borderRadius: 8,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 350, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.raw} clean${ctx.raw !== 1 ? 's' : ''}` },
+          backgroundColor: '#3A2212', titleColor: '#F5EDE4', bodyColor: '#A8754E',
+          borderColor: 'rgba(244,107,26,0.3)', borderWidth: 1, padding: 10, cornerRadius: 8,
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#A8754E', font: { size: 10, family: 'DM Sans' } },
+          border: { display: false },
+        },
+        y: {
+          grid: { color: 'rgba(244,107,26,0.07)' },
+          ticks: { color: '#A8754E', font: { size: 10 }, stepSize: 1, precision: 0 },
+          border: { display: false },
+          beginAtZero: true,
+        }
+      }
+    }
+  });
+}
+
+// ── Person cards ──
+function renderPersonCards() {
+  const html = ['Liam','Josiah'].map(name => {
+    const rows    = allData.filter(r => r.name === name);
+    const cleaned = rows.filter(r => r.cleaned === 'Yes').length;
+    const rate    = rows.length ? Math.round((cleaned/rows.length)*100) : 0;
+    return `
+      <div class="person-card">
+        <div class="person-name">${name}</div>
+        <div class="person-stat">
+          <span class="person-stat-label">Cleaned</span>
+          <span class="person-stat-val">${cleaned} days</span>
+        </div>
+        <div class="person-stat">
+          <span class="person-stat-label">Streak</span>
+          <span class="person-stat-val">🔥 ${calcStreak(rows)}</span>
+        </div>
+        <div class="person-stat">
+          <span class="person-stat-label">Best</span>
+          <span class="person-stat-val">🏆 ${calcBestStreak(rows)}</span>
+        </div>
+        <div class="person-stat">
+          <span class="person-stat-label">Avg ⭐</span>
+          <span class="person-stat-val">${avgStars(rows)}</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width:${rate}%"></div>
+        </div>
+        <div style="font-size:11px;color:var(--warm-lt);margin-top:6px">${rate}% clean rate</div>
+      </div>`;
+  }).join('');
+  document.getElementById('person-cards').innerHTML = html;
+}
+
+// ── Recent log ──
+function renderRecent(rows) {
+  const recent = [...rows].reverse().slice(0, 10);
+  if (!recent.length) {
+    document.getElementById('recent-log').innerHTML =
+      '<p style="font-size:13px;color:var(--warm-lt);padding:8px 0">No entries yet. Log a check-in first!</p>';
+    return;
+  }
+  document.getElementById('recent-log').innerHTML = recent.map(r => {
+    const d      = new Date(r.date);
+    const dateStr = d.toLocaleDateString('en-CA', { weekday:'short', month:'short', day:'numeric' });
+    const ok     = r.cleaned === 'Yes';
+    return `
+      <div class="log-item">
+        <div class="log-dot ${ok?'yes':'no'}"></div>
+        <div class="log-info">
+          <div class="log-name">${r.name || '?'}</div>
+          <div class="log-meta">${ok?(r.duration||'Cleaned'):'Skipped'}${r.notes?' · '+r.notes.substring(0,30):''}</div>
+        </div>
+        <div class="log-right">
+          <div class="log-stars">${r.stars?'★'.repeat(Number(r.stars)):''}</div>
+          <div class="log-date">${dateStr}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>
