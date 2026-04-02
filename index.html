@@ -1,0 +1,1629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Room Check-in">
+<meta name="theme-color" content="#1A0F08">
+<title>Room Check-in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --orange:        #F46B1A;
+  --orange-dk:     #C4500E;
+  --orange-lt:     rgba(244,107,26,0.18);
+  --orange-glow:   rgba(244,107,26,0.35);
+  --bg:            #1A0F08;
+  --surface:       #251509;
+  --surface2:      #2E1A0E;
+  --surface3:      #3A2212;
+  --text:          #F5EDE4;
+  --text-muted:    #C9915F;
+  --text-dim:      #7A5040;
+  --border:        rgba(244,107,26,0.12);
+  --border-bright: rgba(244,107,26,0.28);
+  --safe-bottom:   env(safe-area-inset-bottom, 0px);
+  --safe-top:      env(safe-area-inset-top, 0px);
+  --gold:          #FFD166;
+  --gold-lt:       rgba(255,209,102,0.15);
+  --ice:           #80c8ff;
+  --ice-lt:        rgba(128,200,255,0.12);
+}
+
+html { height: 100%; -webkit-text-size-adjust: 100%; }
+body {
+  min-height: 100dvh; font-family: 'DM Sans', sans-serif;
+  background: var(--bg); color: var(--text); overscroll-behavior: none;
+}
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+}
+body::after {
+  content: ''; position: fixed; top: -120px; right: -120px;
+  width: 360px; height: 360px;
+  background: radial-gradient(circle, rgba(244,107,26,0.10) 0%, transparent 70%);
+  border-radius: 50%; pointer-events: none; z-index: 0;
+}
+
+.page { display: none; min-height: 100dvh; position: relative; z-index: 1; }
+.page.active { display: block; }
+
+/* SHARED LAYOUT */
+.page-inner {
+  position: relative; z-index: 1; min-height: 100dvh; display: flex; flex-direction: column;
+  padding: calc(16px + var(--safe-top)) 16px calc(28px + var(--safe-bottom));
+  max-width: 480px; margin: 0 auto;
+}
+
+/* Stats page — scrollable, pull-to-refresh handled by JS */
+#stats-page-inner {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.page-header {
+  padding: 8px 4px 20px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.header-left { display: flex; flex-direction: column; gap: 2px; }
+.header-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--orange); }
+.header-left h1 { font-family: 'DM Serif Display', serif; font-size: clamp(24px, 6.5vw, 32px); line-height: 1.1; color: var(--text); }
+.header-left h1 em { font-style: italic; color: var(--orange); }
+.header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.date-badge {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; background: var(--surface3); border-radius: 50px;
+  border: 1px solid var(--border); font-size: 11px; font-weight: 600; color: var(--text-muted); white-space: nowrap;
+}
+.nav-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; background: var(--surface3); border-radius: 50px;
+  border: 1px solid var(--border); font-size: 11px; font-weight: 600; color: var(--text-muted);
+  cursor: pointer; font-family: 'DM Sans', sans-serif; -webkit-tap-highlight-color: transparent; transition: all 0.15s;
+}
+.nav-btn:active { background: var(--surface2); transform: scale(0.96); }
+
+@keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+@keyframes pop { from { transform:scale(0.4); opacity:0; } to { transform:scale(1); opacity:1; } }
+@keyframes spin { to { transform:rotate(360deg); } }
+@keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.08);} }
+@keyframes shimmer { 0%{background-position:-200% 0;} 100%{background-position:200% 0;} }
+@keyframes flameDance { 0%,100%{transform:scaleY(1) rotate(-1deg);} 50%{transform:scaleY(1.1) rotate(1deg);} }
+@keyframes countUp { from{transform:translateY(12px);opacity:0;} to{transform:translateY(0);opacity:1;} }
+@keyframes xpFill { from{width:0;} }
+@keyframes slideDown { from{opacity:0;transform:translateY(-12px);} to{opacity:1;transform:translateY(0);} }
+
+/* CONFETTI */
+#confetti-canvas { position: fixed; inset: 0; z-index: 999; pointer-events: none; }
+
+/* STREAK ALERT */
+.streak-alert {
+  display: none; align-items: center; gap: 10px;
+  padding: 12px 16px; background: var(--surface2); border: 1px solid var(--border-bright);
+  border-radius: 16px; margin-bottom: 12px; animation: fadeUp 0.3s ease both;
+}
+.streak-alert.visible { display: flex; }
+.streak-alert-icon { font-size: 20px; flex-shrink: 0; }
+.streak-alert-text { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; line-height: 1.4; }
+.streak-alert-text span { color: var(--orange); }
+
+/* WEEKLY SUMMARY */
+.weekly-summary {
+  display: none; flex-direction: column; gap: 10px;
+  padding: 16px; background: var(--surface2); border: 1px solid var(--border-bright);
+  border-radius: 18px; margin-bottom: 4px; animation: fadeUp 0.3s ease both;
+}
+.weekly-summary.visible { display: flex; }
+.weekly-summary-title { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--orange); }
+.weekly-summary-row { display: flex; gap: 8px; }
+.weekly-summary-stat {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--surface3); border-radius: 12px; padding: 10px 8px;
+}
+.weekly-summary-val { font-family: 'DM Serif Display', serif; font-size: 24px; color: var(--text); line-height: 1; }
+.weekly-summary-lbl { font-size: 10px; color: var(--text-dim); font-weight: 600; text-align: center; }
+
+/* ALREADY LOGGED */
+.already-logged-card {
+  display: none; flex: 1; background: var(--surface); border-radius: 24px;
+  border: 1px solid var(--border); padding: 24px 20px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 8px 40px rgba(0,0,0,0.5);
+  flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 20px; animation: fadeUp 0.35s ease both;
+}
+.already-logged-card.visible { display: flex; }
+.already-logged-icon {
+  width: 90px; height: 90px; background: var(--orange-lt); border: 2px solid var(--border-bright);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 40px;
+  animation: pop 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.already-logged-card h2 { font-family: 'DM Serif Display', serif; font-size: 28px; color: var(--text); }
+.already-logged-card p  { font-size: 15px; color: var(--text-muted); line-height: 1.6; }
+
+/* ── DUOLINGO-STYLE STREAK DISPLAY ── */
+.streak-showcase {
+  display: none; flex-direction: column; align-items: center; gap: 10px;
+  background: var(--surface2); border: 1px solid var(--border-bright); border-radius: 20px;
+  padding: 20px 28px; animation: fadeUp 0.4s 0.15s ease both; width: 100%;
+}
+.streak-showcase.visible { display: flex; }
+.streak-flame-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+.streak-flame { font-size: 56px; line-height: 1; animation: flameDance 1.8s ease-in-out infinite; }
+.streak-flame.at-risk { filter: grayscale(0.5); opacity: 0.7; animation: none; }
+.streak-flame.frozen { filter: hue-rotate(180deg) saturate(0.6) brightness(1.3); animation: none; }
+.streak-num-big { font-family: 'DM Serif Display', serif; font-size: 64px; color: var(--orange); line-height: 1; animation: countUp 0.5s cubic-bezier(0.34,1.56,0.64,1) both; }
+.streak-num-big.at-risk { color: var(--text-dim); }
+.streak-label-big { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); }
+.streak-status-pill {
+  padding: 5px 14px; border-radius: 50px; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.streak-status-pill.alive { background: var(--orange-lt); color: var(--orange); border: 1px solid var(--border-bright); }
+.streak-status-pill.at-risk { background: rgba(255,80,80,0.1); color: #ff8080; border: 1px solid rgba(255,80,80,0.25); }
+.streak-status-pill.frozen { background: var(--ice-lt); color: var(--ice); border: 1px solid rgba(128,200,255,0.25); }
+
+/* XP / Level bar */
+.streak-xp-section { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.streak-xp-header { display: flex; justify-content: space-between; align-items: center; }
+.streak-xp-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+.streak-xp-val { font-size: 11px; font-weight: 700; color: var(--orange); }
+.streak-xp-bar { height: 8px; background: var(--surface3); border-radius: 50px; overflow: hidden; }
+.streak-xp-fill { height: 100%; background: linear-gradient(90deg, var(--orange-dk), var(--orange), #FFB347); border-radius: 50px; transition: width 1.2s cubic-bezier(0.34,1.56,0.64,1); animation: xpFill 1.2s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+/* Streak milestones row */
+.streak-milestones { display: flex; justify-content: space-between; gap: 6px; width: 100%; }
+.streak-milestone-pip {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  opacity: 0.35; transition: all 0.3s;
+}
+.streak-milestone-pip.reached { opacity: 1; }
+.streak-milestone-pip.next { opacity: 0.7; }
+.streak-milestone-icon { font-size: 16px; }
+.streak-milestone-num { font-size: 9px; font-weight: 700; color: var(--text-dim); }
+.streak-milestone-pip.reached .streak-milestone-num { color: var(--orange); }
+
+.already-streak-msg { font-size: 13px; color: var(--text-muted); margin-top: 2px; text-align: center; }
+
+.log-anyway-btn {
+  padding: 10px 20px; background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: 12px; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+  -webkit-tap-highlight-color: transparent; transition: all 0.15s;
+}
+.log-anyway-btn:active { transform: scale(0.97); }
+
+/* ── PRE-SELECTION STREAK TEASER ── */
+.pre-select-streaks {
+  display: flex; gap: 8px; margin-bottom: 12px; animation: fadeUp 0.3s ease both;
+}
+.pre-select-streak-card {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 16px; padding: 14px 12px; display: flex; flex-direction: column;
+  align-items: center; gap: 4px; cursor: pointer; transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.pre-select-streak-card:active { transform: scale(0.97); }
+.pre-select-streak-card.has-streak { border-color: var(--border-bright); }
+.pre-select-name { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
+.pre-select-flame { font-size: 22px; line-height: 1; }
+.pre-select-num { font-family: 'DM Serif Display', serif; font-size: 26px; color: var(--orange); line-height: 1; }
+.pre-select-num.zero { color: var(--text-dim); }
+.pre-select-label { font-size: 9px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-dim); }
+.pre-select-hint { font-size: 10px; color: var(--text-dim); text-align: center; margin-bottom: 6px; letter-spacing: 0.04em; animation: fadeUp 0.3s 0.1s ease both; }
+.card {
+  flex: 1; background: var(--surface); border-radius: 24px; border: 1px solid var(--border);
+  padding: 24px 20px; box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 8px 40px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column; animation: fadeUp 0.35s ease both;
+}
+.fields { display: flex; flex-direction: column; flex: 1; }
+.field { padding: 18px 0; border-bottom: 1px solid var(--border); }
+.field:first-of-type { padding-top: 4px; }
+.field:last-of-type  { border-bottom: none; padding-bottom: 4px; }
+.field-label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 14px; }
+.field-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; background: var(--orange-lt); color: var(--orange);
+  border-radius: 50%; font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.toggle-wrap { display: flex; gap: 10px; }
+.toggle-opt  { flex: 1; }
+.toggle-opt input[type="radio"] { display: none; }
+.toggle-opt label {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 18px 12px; border: 1.5px solid var(--border); border-radius: 16px;
+  cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text-dim);
+  background: var(--surface2); transition: all 0.15s ease; user-select: none;
+  -webkit-tap-highlight-color: transparent; min-height: 82px;
+}
+.toggle-opt label .icon { font-size: 26px; line-height: 1; transition: transform 0.2s ease; }
+.toggle-opt input:checked + label {
+  border-color: var(--orange); background: var(--orange-lt); color: var(--orange);
+  box-shadow: 0 0 0 3px rgba(244,107,26,0.12), 0 4px 16px rgba(244,107,26,0.15);
+}
+.toggle-opt input:checked + label .icon { transform: scale(1.15); }
+.chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.chip-opt input[type="radio"] { display: none; }
+.chip-opt label {
+  display: flex; align-items: center; justify-content: center;
+  padding: 14px 10px; border: 1.5px solid var(--border); border-radius: 14px;
+  cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-dim);
+  background: var(--surface2); transition: all 0.15s ease; user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.chip-opt input:checked + label { background: var(--orange); border-color: var(--orange); color: #fff; box-shadow: 0 2px 12px rgba(244,107,26,0.4); }
+.stars { display: flex; gap: 2px; flex-direction: row-reverse; justify-content: flex-end; }
+.stars input[type="radio"] { display: none; }
+.stars label {
+  font-size: 40px; cursor: pointer; color: var(--surface3);
+  transition: color 0.1s, transform 0.1s; line-height: 1;
+  user-select: none; -webkit-tap-highlight-color: transparent; padding: 2px;
+}
+.stars label:hover, .stars label:hover ~ label, .stars input:checked ~ label { color: var(--orange); }
+.stars label:active { transform: scale(0.9); }
+.note-input {
+  width: 100%; padding: 14px; border: 1.5px solid var(--border); border-radius: 14px;
+  font-family: 'DM Sans', sans-serif; font-size: 16px; color: var(--text); background: var(--surface2);
+  resize: none; outline: none; min-height: 80px; transition: border-color 0.15s; -webkit-appearance: none;
+}
+.note-input::placeholder { color: var(--text-dim); }
+.note-input:focus { border-color: var(--orange); background: var(--surface3); }
+.submit-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 20px; background: var(--orange); color: #fff; border: none; border-radius: 18px;
+  font-family: 'DM Sans', sans-serif; font-size: 17px; font-weight: 700;
+  cursor: pointer; transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+  box-shadow: 0 4px 24px rgba(244,107,26,0.45); margin-top: 20px;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.submit-btn:active { background: var(--orange-dk); transform: scale(0.97); }
+.submit-btn:disabled { opacity: 0.5; pointer-events: none; }
+
+/* SUCCESS */
+.success {
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 16px; flex: 1; padding: 32px 24px;
+}
+.success-icon {
+  width: 90px; height: 90px; background: var(--orange-lt); border: 2px solid var(--border-bright);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 40px; animation: pop 0.45s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.success h2 { font-family: 'DM Serif Display', serif; font-size: 30px; color: var(--text); }
+.success p  { font-size: 15px; color: var(--text-muted); line-height: 1.6; }
+
+/* Success streak showcase (same duolingo style) */
+.success-streak-showcase {
+  display: none; flex-direction: column; align-items: center; gap: 8px;
+  background: var(--surface2); border: 1px solid var(--border-bright); border-radius: 20px;
+  padding: 18px 28px; animation: fadeUp 0.4s 0.2s ease both; width: 100%;
+}
+.success-streak-showcase.visible { display: flex; }
+.success-streak-flame { font-size: 42px; animation: flameDance 1.8s ease-in-out infinite; }
+.success-streak-num { font-family: 'DM Serif Display', serif; font-size: 52px; color: var(--orange); line-height: 1; animation: countUp 0.5s 0.2s cubic-bezier(0.34,1.56,0.64,1) both; }
+.success-streak-label { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 4px; }
+/* XP gained badge */
+.xp-gained {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 14px; background: var(--gold-lt); border: 1px solid rgba(255,209,102,0.3);
+  border-radius: 50px; font-size: 12px; font-weight: 700; color: var(--gold);
+  animation: fadeUp 0.4s 0.35s ease both;
+}
+.success-milestone {
+  background: linear-gradient(135deg, rgba(244,107,26,0.2), rgba(244,107,26,0.05));
+  border: 1px solid var(--orange-glow); border-radius: 16px;
+  padding: 14px 20px; font-size: 14px; font-weight: 600; color: var(--orange);
+  text-align: center; animation: fadeUp 0.4s 0.35s ease both; display: none;
+}
+.view-stats-btn {
+  padding: 14px 28px; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 14px; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600;
+  -webkit-tap-highlight-color: transparent; transition: all 0.15s; animation: fadeUp 0.4s 0.5s ease both;
+}
+.view-stats-btn:active { transform: scale(0.97); }
+
+/* STATS PAGE */
+/* Pull-to-refresh indicator — sits ABOVE content, revealed by transform */
+.ptr-indicator {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  height: 48px;
+  font-size: 12px; color: var(--text-dim); font-weight: 600;
+  transform: translateY(-48px); transition: transform 0.25s ease;
+  overflow: hidden;
+}
+.ptr-indicator.pulling { transform: translateY(0); }
+.ptr-spinner { width: 16px; height: 16px; border: 2px solid var(--surface3); border-top-color: var(--orange); border-radius: 50%; animation: spin 0.7s linear infinite; }
+
+/* The stats page body — full scroll */
+#page-stats {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#stats-page-inner {
+  overflow-y: visible; /* scrolling is on #page-stats now */
+}
+
+/* Inline refresh badge — shows while background refresh runs */
+.inline-refresh-badge {
+  display: none; align-items: center; gap: 6px;
+  padding: 5px 12px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 50px; font-size: 11px; font-weight: 600; color: var(--text-dim);
+  animation: slideDown 0.2s ease;
+}
+.inline-refresh-badge.visible { display: inline-flex; }
+.inline-refresh-spinner { width: 10px; height: 10px; border: 1.5px solid var(--surface3); border-top-color: var(--orange); border-radius: 50%; animation: spin 0.7s linear infinite; }
+
+.data-source-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 50px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 4px;
+}
+.data-source-badge.synced { background: rgba(100,200,100,0.12); color: #7dce82; border: 1px solid rgba(100,200,100,0.2); }
+.data-source-badge.local  { background: var(--orange-lt); color: var(--orange); border: 1px solid var(--border); }
+.data-source-badge.error  { background: rgba(255,80,80,0.12); color: #ff8080; border: 1px solid rgba(255,80,80,0.2); }
+.badge-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.stats-content { display: none; flex-direction: column; gap: 14px; }
+.filter-tabs { display: flex; gap: 6px; background: var(--surface2); border-radius: 14px; padding: 4px; border: 1px solid var(--border); }
+.tab-btn { flex: 1; padding: 10px 8px; background: transparent; border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; color: var(--text-dim); cursor: pointer; transition: all 0.15s ease; -webkit-tap-highlight-color: transparent; }
+.tab-btn.active { background: var(--orange); color: #fff; box-shadow: 0 2px 10px rgba(244,107,26,0.4); }
+
+.stat-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat-card-full { grid-column: 1 / -1; }
+.stat-card { background: var(--surface2); border-radius: 18px; border: 1px solid var(--border); padding: 18px 16px; display: flex; flex-direction: column; gap: 4px; animation: fadeUp 0.3s ease both; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.stat-card:nth-child(2) { animation-delay: 0.05s; }
+.stat-card:nth-child(3) { animation-delay: 0.10s; }
+.stat-card:nth-child(4) { animation-delay: 0.15s; }
+.stat-card:nth-child(5) { animation-delay: 0.20s; }
+.stat-label { font-size: 10px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase; color: var(--text-dim); }
+.stat-value { font-family: 'DM Serif Display', serif; font-size: 36px; line-height: 1; color: var(--text); }
+.stat-value span { font-size: 16px; color: var(--text-dim); }
+.stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.stat-accent { color: var(--orange); }
+.stat-card.streak-card { border-color: var(--border-bright); }
+.streak-msg { font-size: 11px; font-weight: 600; color: var(--orange); margin-top: 6px; line-height: 1.4; }
+.streak-grace { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; padding: 3px 8px; background: rgba(100,180,255,0.1); border: 1px solid rgba(100,180,255,0.2); border-radius: 50px; font-size: 10px; font-weight: 600; color: #80c8ff; }
+
+/* ── STREAK LEAGUE CARD (Duolingo-style) ── */
+.streak-league-card {
+  background: var(--surface2); border-radius: 18px; border: 1px solid var(--border-bright);
+  padding: 20px 16px; animation: fadeUp 0.3s ease 0.12s both; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  display: none; flex-direction: column; gap: 14px;
+}
+.streak-league-card.visible { display: flex; }
+.streak-league-title { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--orange); }
+.league-players { display: flex; flex-direction: column; gap: 10px; }
+.league-player {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface3); border-radius: 12px; padding: 12px 14px;
+}
+.league-player.me { border: 1px solid var(--border-bright); background: var(--orange-lt); }
+.league-rank { font-family: 'DM Serif Display', serif; font-size: 20px; width: 28px; text-align: center; flex-shrink: 0; }
+.league-rank.gold { color: var(--gold); }
+.league-rank.silver { color: #c0c0c0; }
+.league-avatar { font-size: 22px; flex-shrink: 0; }
+.league-info { flex: 1; }
+.league-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.league-streak-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.league-streak-val { font-size: 12px; font-weight: 700; color: var(--orange); }
+.league-streak-lbl { font-size: 11px; color: var(--text-dim); }
+.league-xp { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--gold); flex-shrink: 0; }
+.league-xp-lbl { font-size: 9px; color: var(--text-dim); font-weight: 700; text-align: right; }
+
+/* RIVALRY CARD */
+.rivalry-card {
+  background: var(--surface2); border-radius: 18px; border: 1px solid var(--border-bright);
+  padding: 20px 16px; animation: fadeUp 0.3s ease 0.22s both; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.rivalry-title { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--orange); margin-bottom: 14px; }
+.rivalry-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.rivalry-overall { font-size: 11px; color: var(--text-dim); }
+.rivalry-leading { font-size: 11px; font-weight: 700; color: var(--orange); }
+.rivalry-tie { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.rivalry-stat-row { margin-bottom: 12px; }
+.rivalry-stat-row:last-child { margin-bottom: 0; }
+.rivalry-stat-label-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+.rivalry-val-left  { font-size: 16px; font-weight: 700; }
+.rivalry-val-right { font-size: 16px; font-weight: 700; }
+.rivalry-val-left.winner, .rivalry-val-right.winner { color: var(--orange); }
+.rivalry-val-left.loser,  .rivalry-val-right.loser  { color: var(--text-dim); }
+.rivalry-stat-name { font-size: 10px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; }
+.rivalry-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; height: 5px; }
+.rivalry-bar { background: var(--surface3); border-radius: 3px; overflow: hidden; }
+.rivalry-bar-fill { height: 100%; background: var(--orange); border-radius: 3px; transition: width 0.9s cubic-bezier(0.34,1.56,0.64,1); }
+.rivalry-bar.left .rivalry-bar-fill { margin-left: auto; }
+.rivalry-names-row { display: flex; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.rivalry-name { font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.score-badge { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--orange); color: #fff; font-size: 11px; font-weight: 700; }
+.score-badge.dim { background: var(--surface3); color: var(--text-dim); }
+
+/* CHART */
+.chart-card { background: var(--surface2); border-radius: 18px; border: 1px solid var(--border); padding: 20px 16px; animation: fadeUp 0.3s ease 0.25s both; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.chart-title { font-size: 12px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; }
+.time-range-tabs { display: flex; gap: 2px; background: var(--surface3); border-radius: 10px; padding: 3px; }
+.tr-btn { padding: 5px 11px; background: transparent; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; color: var(--text-dim); cursor: pointer; transition: all 0.18s ease; -webkit-tap-highlight-color: transparent; }
+.tr-btn.active { background: var(--orange); color: #fff; box-shadow: 0 1px 8px rgba(244,107,26,0.5); }
+.chart-wrap { position: relative; width: 100%; height: 180px; }
+.chart-wrap canvas { display: block; width: 100% !important; height: 180px !important; }
+.chart-empty { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; flex-direction: column; gap: 8px; background: var(--surface2); border-radius: 10px; }
+.chart-empty.visible { display: flex; }
+.chart-empty-icon { font-size: 28px; }
+.chart-empty-text { font-size: 13px; color: var(--text-dim); font-weight: 600; }
+
+/* PERSON CARDS */
+.person-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.person-card { background: var(--surface2); border-radius: 18px; border: 1px solid var(--border); padding: 18px 16px; animation: fadeUp 0.3s ease 0.3s both; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.person-card:nth-child(2) { animation-delay: 0.35s; }
+.person-name { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--text); margin-bottom: 12px; }
+.person-stat { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.person-stat:last-of-type { margin-bottom: 0; }
+.person-stat-label { font-size: 11px; color: var(--text-dim); }
+.person-stat-val   { font-size: 13px; font-weight: 700; color: var(--text); }
+.best-day-badge { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; padding: 4px 8px; background: var(--orange-lt); border: 1px solid var(--border-bright); border-radius: 50px; font-size: 10px; font-weight: 700; color: var(--orange); }
+.progress-bar { height: 5px; background: var(--surface3); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--orange); border-radius: 3px; transition: width 0.9s cubic-bezier(0.34,1.56,0.64,1); }
+
+/* ── 7-DAY CALENDAR STRIP ── */
+.week-calendar-card {
+  background: var(--surface2); border-radius: 18px; border: 1px solid var(--border-bright);
+  padding: 18px 16px; animation: fadeUp 0.3s ease 0.08s both; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.week-cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.week-cal-title { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--orange); }
+.week-cal-count { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.week-cal-days { display: flex; justify-content: space-between; gap: 4px; }
+.week-cal-day {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.week-cal-label { font-size: 9px; font-weight: 700; letter-spacing: 0.04em; color: var(--text-dim); text-transform: uppercase; }
+.week-cal-dot {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; transition: all 0.2s;
+}
+.week-cal-dot.clean {
+  background: var(--orange); box-shadow: 0 0 10px rgba(244,107,26,0.45);
+}
+.week-cal-dot.missed {
+  background: transparent; border: 2px solid var(--surface3);
+}
+.week-cal-dot.future {
+  background: transparent; border: 2px dashed var(--surface3);
+}
+.week-cal-dot.today-clean {
+  background: var(--orange); box-shadow: 0 0 14px rgba(244,107,26,0.65);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+.week-cal-dot.today-pending {
+  background: transparent; border: 2px solid var(--orange);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+.week-cal-day.is-today .week-cal-label { color: var(--orange); }
+.stats-empty-state {
+  display: none; flex-direction: column; align-items: center; text-align: center;
+  gap: 16px; padding: 48px 24px; animation: fadeUp 0.4s ease both;
+}
+.stats-empty-state.visible { display: flex; }
+.stats-empty-icon { font-size: 56px; line-height: 1; animation: pop 0.5s cubic-bezier(0.34,1.56,0.64,1) both; }
+.stats-empty-title { font-family: 'DM Serif Display', serif; font-size: 26px; color: var(--text); }
+.stats-empty-body { font-size: 14px; color: var(--text-muted); line-height: 1.6; max-width: 280px; }
+.stats-empty-cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 14px 28px; background: var(--orange); color: #fff; border: none; border-radius: 16px;
+  font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 700;
+  cursor: pointer; box-shadow: 0 4px 20px rgba(244,107,26,0.4);
+  -webkit-tap-highlight-color: transparent; transition: all 0.15s;
+}
+.stats-empty-cta:active { background: var(--orange-dk); transform: scale(0.97); }
+.log-card { background: var(--surface2); border-radius: 18px; border: 1px solid var(--border); padding: 20px 16px; animation: fadeUp 0.3s ease 0.4s both; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.log-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.log-item:last-child { border-bottom: none; padding-bottom: 0; }
+.log-item:first-child { padding-top: 0; }
+.log-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.log-dot.yes { background: var(--orange); box-shadow: 0 0 6px rgba(244,107,26,0.5); }
+.log-dot.no  { background: transparent; border: 2px solid var(--text-dim); }
+.log-info { flex: 1; min-width: 0; }
+.log-name  { font-size: 13px; font-weight: 600; color: var(--text); }
+.log-meta  { font-size: 11px; color: var(--text-dim); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-right { text-align: right; flex-shrink: 0; }
+.log-stars { font-size: 11px; color: var(--orange); letter-spacing: -1px; }
+.log-date  { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+
+<!-- CHECK-IN PAGE -->
+<div class="page active" id="page-checkin">
+<div class="page-inner">
+
+  <div class="page-header">
+    <div class="header-left">
+      <span class="header-eyebrow">Room check-in</span>
+      <h1>How'd the<br><em>cleaning go?</em></h1>
+    </div>
+    <div class="header-right">
+      <div class="date-badge">📅 <span id="today-date"></span></div>
+      <button class="nav-btn" onclick="showStats()">📊 Stats</button>
+    </div>
+  </div>
+
+  <div class="streak-alert" id="streak-alert">
+    <span class="streak-alert-icon">🔥</span>
+    <span class="streak-alert-text" id="streak-alert-text"></span>
+  </div>
+
+  <div class="weekly-summary" id="weekly-summary">
+    <div class="weekly-summary-title">📋 This week's recap</div>
+    <div class="weekly-summary-row" id="weekly-summary-row"></div>
+  </div>
+
+  <!-- Already logged card -->
+  <div class="already-logged-card" id="already-logged-card">
+    <div class="already-logged-icon">✅</div>
+    <h2>Already done!</h2>
+    <p id="already-logged-msg">You've logged today.<br>Come back tomorrow.</p>
+
+    <!-- Duolingo-style streak showcase -->
+    <div class="streak-showcase" id="streak-showcase">
+      <div class="streak-flame-wrap">
+        <div class="streak-flame" id="showcase-flame">🔥</div>
+      </div>
+      <div class="streak-num-big" id="showcase-streak-num">0</div>
+      <div class="streak-label-big">Day Streak</div>
+      <div class="streak-status-pill alive" id="showcase-status-pill">🔥 On Fire</div>
+      <!-- XP bar -->
+      <div class="streak-xp-section">
+        <div class="streak-xp-header">
+          <span class="streak-xp-label">⚡ Streak XP</span>
+          <span class="streak-xp-val" id="showcase-xp-text">0 XP</span>
+        </div>
+        <div class="streak-xp-bar"><div class="streak-xp-fill" id="showcase-xp-fill" style="width:0%"></div></div>
+      </div>
+      <!-- Milestone pips -->
+      <div class="streak-milestones" id="showcase-milestones"></div>
+      <div class="already-streak-msg" id="already-streak-msg"></div>
+      <!-- Mini 7-day strip inside already-logged view -->
+      <div style="width:100%;margin-top:4px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;text-align:center">This week</div>
+        <div style="display:flex;justify-content:space-between;gap:3px" id="checkin-week-strip"></div>
+        </div>
+    </div>
+
+    <button class="nav-btn" onclick="showStats()">📊 View stats</button>
+    <button class="log-anyway-btn" onclick="showFormAnyway()">Log again anyway</button>
+  </div>
+
+  <!-- Pre-selection streak teaser — visible before a name is picked -->
+  <div class="pre-select-streaks" id="pre-select-streaks">
+    <div class="pre-select-streak-card" id="pss-liam" onclick="document.getElementById('liam').click()">
+      <div class="pre-select-name">Liam</div>
+      <div class="pre-select-flame" id="pss-liam-flame">🔥</div>
+      <div class="pre-select-num" id="pss-liam-num">0</div>
+      <div class="pre-select-label">day streak</div>
+    </div>
+    <div class="pre-select-streak-card" id="pss-josiah" onclick="document.getElementById('josiah').click()">
+      <div class="pre-select-name">Josiah</div>
+      <div class="pre-select-flame" id="pss-josiah-flame">🔥</div>
+      <div class="pre-select-num" id="pss-josiah-num">0</div>
+      <div class="pre-select-label">day streak</div>
+    </div>
+  </div>
+  <div class="pre-select-hint" id="pre-select-hint">👆 Tap your name to check in</div>
+
+  <!-- Form card -->
+  <div class="card" id="form-card">
+    <div class="fields" id="form-fields">
+
+      <div class="field">
+        <div class="field-label"><span class="field-num">👤</span>Who are you?</div>
+        <div class="toggle-wrap">
+          <div class="toggle-opt">
+            <input type="radio" name="name" id="liam" value="Liam">
+            <label for="liam"><span class="icon">🙋</span>Liam</label>
+          </div>
+          <div class="toggle-opt">
+            <input type="radio" name="name" id="josiah" value="Josiah">
+            <label for="josiah"><span class="icon">🙋</span>Josiah</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span class="field-num">1</span>Did you clean today?</div>
+        <div class="toggle-wrap">
+          <div class="toggle-opt">
+            <input type="radio" name="cleaned" id="yes" value="Yes">
+            <label for="yes"><span class="icon">✅</span>Yes, I did</label>
+          </div>
+          <div class="toggle-opt">
+            <input type="radio" name="cleaned" id="no" value="No">
+            <label for="no"><span class="icon">❌</span>Not today</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span class="field-num">2</span>How long did you clean?</div>
+        <div class="chips">
+          <div class="chip-opt"><input type="radio" name="duration" id="d5"  value="Under 10 min"><label for="d5">Under 10 min</label></div>
+          <div class="chip-opt"><input type="radio" name="duration" id="d10" value="10–15 min"><label for="d10">10–15 min</label></div>
+          <div class="chip-opt"><input type="radio" name="duration" id="d20" value="15–30 min"><label for="d20">15–30 min</label></div>
+          <div class="chip-opt"><input type="radio" name="duration" id="d30" value="30 min+"><label for="d30">30 min+</label></div>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label"><span class="field-num">3</span>How productive was it?</div>
+        <div class="stars">
+          <input type="radio" name="stars" id="s5" value="5"><label for="s5">★</label>
+          <input type="radio" name="stars" id="s4" value="4"><label for="s4">★</label>
+          <input type="radio" name="stars" id="s3" value="3"><label for="s3">★</label>
+          <input type="radio" name="stars" id="s2" value="2"><label for="s2">★</label>
+          <input type="radio" name="stars" id="s1" value="1"><label for="s1">★</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">
+          <span class="field-num">+</span>Any notes?
+          <span style="font-weight:400;color:var(--text-dim)">(optional)</span>
+        </div>
+        <textarea class="note-input" name="notes" id="note" placeholder="e.g. Vacuumed, changed sheets..." rows="3"></textarea>
+      </div>
+    </div>
+
+    <button type="button" class="submit-btn" id="submit-btn" onclick="handleSubmit()">Log it →</button>
+
+    <div class="success" id="success-msg">
+      <div class="success-icon" id="success-icon">🧹</div>
+      <h2 id="success-title">Logged!</h2>
+      <p id="success-body">Thanks for checking in.</p>
+
+      <!-- Duolingo-style success streak -->
+      <div class="success-streak-showcase" id="success-streak-showcase">
+        <div class="success-streak-flame">🔥</div>
+        <div class="success-streak-num" id="success-streak-num">0</div>
+        <div class="success-streak-label">Day Streak</div>
+      </div>
+
+      <div class="xp-gained" id="xp-gained" style="display:none">⚡ +<span id="xp-gained-val">10</span> XP earned</div>
+      <div class="success-milestone" id="success-milestone"></div>
+      <button class="view-stats-btn" onclick="showStats()">View your stats →</button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- STATS PAGE -->
+<div class="page" id="page-stats">
+<div class="page-inner" id="stats-page-inner">
+
+  <!-- Pull-to-refresh indicator (above content, revealed by pulling) -->
+  <div class="ptr-indicator" id="ptr-indicator">
+    <div class="ptr-spinner"></div>
+    <span>Refreshing…</span>
+  </div>
+
+  <div class="page-header">
+    <div class="header-left">
+      <span class="header-eyebrow">Dashboard</span>
+      <h1>Room <em>Stats</em></h1>
+    </div>
+    <button class="nav-btn" onclick="showCheckin()">← Log</button>
+  </div>
+
+  <div class="stats-empty-state" id="stats-empty-state">
+    <div class="stats-empty-icon">🧹</div>
+    <div class="stats-empty-title">Nothing here yet!</div>
+    <div class="stats-empty-body">Log your first clean-up to unlock stats, streaks, and the head-to-head rivalry board.</div>
+    <button class="stats-empty-cta" onclick="showCheckin()">Log your first clean →</button>
+  </div>
+
+  <div class="stats-content" id="stats-content" style="display:flex">
+    <div class="badge-row">
+      <div id="data-source-badge" class="data-source-badge synced"></div>
+      <div class="inline-refresh-badge" id="inline-refresh-badge">
+        <div class="inline-refresh-spinner"></div>
+        Syncing…
+      </div>
+    </div>
+
+    <div class="filter-tabs">
+      <button class="tab-btn active" onclick="setFilter('all',this)">Everyone</button>
+      <button class="tab-btn" onclick="setFilter('Liam',this)">Liam</button>
+      <button class="tab-btn" onclick="setFilter('Josiah',this)">Josiah</button>
+    </div>
+
+    <!-- 7-day calendar strip -->
+    <div class="week-calendar-card" id="week-calendar-card">
+      <div class="week-cal-header">
+        <div class="week-cal-title">📅 This week</div>
+        <div class="week-cal-count" id="week-cal-count"></div>
+      </div>
+      <div class="week-cal-days" id="week-cal-days"></div>
+    </div>
+
+    <!-- Duolingo-style league / streak leaderboard -->
+    <div class="streak-league-card" id="streak-league-card">
+      <div class="streak-league-title">🏆 Streak League</div>
+      <div class="league-players" id="league-players"></div>
+    </div>
+
+    <div class="stat-cards" id="stat-cards"></div>
+    <div class="rivalry-card" id="rivalry-card"></div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">🗓 Cleaning activity</div>
+        <div class="time-range-tabs">
+          <button class="tr-btn active" onclick="setTimeRange('week',this)">Week</button>
+          <button class="tr-btn"        onclick="setTimeRange('month',this)">Month</button>
+          <button class="tr-btn"        onclick="setTimeRange('year',this)">Year</button>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="activityChart"></canvas>
+        <div class="chart-empty" id="chart-empty">
+          <div class="chart-empty-icon">🧹</div>
+          <div class="chart-empty-text">No data for this period yet</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="person-cards" id="person-cards"></div>
+
+    <div class="log-card">
+      <div class="chart-title" style="margin-bottom:16px">🕒 Recent activity</div>
+      <div id="recent-log"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbzsCdgVynr3gLkovl3EMhkITHzGPPtWqGYpbCT_LqHFwys1AzrOmrJRiw0pWOGxERsEVQ/exec';
+const STORAGE_KEY = 'roomCheckinData';
+// Streak milestones with Duolingo-style names + icons
+const MILESTONES = [
+  { days: 3,   icon: '🔥', label: 'Spark',      msg: "3 days in a row. It's becoming a habit. 💪" },
+  { days: 7,   icon: '⚡', label: 'Electric',   msg: 'One full week! This is real momentum. 🔥' },
+  { days: 14,  icon: '🚀', label: 'Launcher',   msg: 'Two weeks strong. You\'re locked in. 🚀' },
+  { days: 21,  icon: '🧠', label: 'Habit Lock', msg: '21 days — habits are officially forming. 🧠' },
+  { days: 30,  icon: '🏆', label: 'Champion',   msg: 'A whole month. Absolute legend. 🏆' },
+  { days: 60,  icon: '⚡', label: 'Unstoppable',msg: '60 days. This room has never been cleaner. ⚡' },
+  { days: 100, icon: '👑', label: 'Legend',     msg: '100 days. You are genuinely unstoppable. 👑' },
+];
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// ── XP system ──
+function calcXP(streak) {
+  // XP grows with streak, bonus for milestones
+  let base = streak * 10;
+  MILESTONES.forEach(m => { if (streak >= m.days) base += 50; });
+  return base;
+}
+function streakLevel(streak) {
+  // Find the bracket for current streak
+  const brackets = [0,3,7,14,21,30,60,100,999];
+  for (let i = 0; i < brackets.length - 1; i++) {
+    if (streak >= brackets[i] && streak < brackets[i+1]) {
+      return { current: brackets[i], next: brackets[i+1], progress: (streak - brackets[i]) / (brackets[i+1] - brackets[i]) };
+    }
+  }
+  return { current: 100, next: 999, progress: (streak-100)/899 };
+}
+
+// ── Date helpers ──
+function dayKey(v) { const d=new Date(v); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function todayKey()     { return dayKey(new Date()); }
+function yesterdayKey() { const d=new Date(); d.setDate(d.getDate()-1); return dayKey(d); }
+
+// Date badge
+const _d = new Date();
+document.getElementById('today-date').textContent = _d.toLocaleDateString('en-CA',{weekday:'short',month:'short',day:'numeric'});
+
+// ── Streak logic (strict: consecutive days only, 1 tracked grace day) ──
+// Grace day state is stored per-person in localStorage so it can only be used once.
+function getGraceState(name) {
+  try { return JSON.parse(localStorage.getItem('graceState_'+name)||'null') || {}; }
+  catch(e) { return {}; }
+}
+function setGraceState(name, state) {
+  localStorage.setItem('graceState_'+name, JSON.stringify(state));
+}
+
+function calcStreakInfo(rows, name) {
+  const cleaned = rows.filter(r => r.cleaned==='Yes');
+  if (!cleaned.length) return {streak:0,isAlive:false,graceDayAvailable:false,graceDayConsumed:false,loggedToday:false,lastCleanKey:null};
+  const uniqueDays = [...new Set(cleaned.map(r=>dayKey(r.date)))].sort();
+  const today = todayKey(), yesterday = yesterdayKey();
+  const loggedToday = uniqueDays.includes(today);
+  const reversed = [...uniqueDays].reverse();
+  const mostRecent = reversed[0];
+  const daysSinceLast = (new Date(today) - new Date(mostRecent)) / 864e5;
+
+  // Load grace state for this person
+  const grace = name ? getGraceState(name) : {};
+  // Grace day is available if: not logged today, last clean was exactly 2 days ago,
+  // AND the grace day hasn't already been consumed for this gap
+  const gapIsTwo = Math.round(daysSinceLast) === 2;
+  const graceConsumed = grace.consumedForDate === mostRecent;
+  const graceDayAvailable = !loggedToday && gapIsTwo && !graceConsumed;
+
+  // Streak alive if logged today, yesterday, or using a valid grace day
+  const isAlive = daysSinceLast <= 1 || (gapIsTwo && !graceConsumed);
+
+  if (!isAlive) {
+    // If they log today after the grace was consumed, reset
+    return {streak:0,isAlive:false,graceDayAvailable:false,graceDayConsumed:graceConsumed,loggedToday,lastCleanKey:mostRecent};
+  }
+
+  // Count streak backward: each gap must be ≤1 day (strict consecutive)
+  // One grace gap of 2 days is allowed but only if it hasn't been consumed
+  let streak = 1, graceUsedInCount = false;
+  for (let i = 1; i < reversed.length; i++) {
+    const gap = (new Date(reversed[i-1]) - new Date(reversed[i])) / 864e5;
+    if (gap <= 1) {
+      streak++;
+    } else if (Math.round(gap) === 2 && !graceUsedInCount) {
+      // Allow exactly one grace gap in the streak chain
+      graceUsedInCount = true;
+      streak++;
+    } else {
+      break;
+    }
+  }
+
+  return {streak, isAlive, graceDayAvailable, graceDayConsumed: graceConsumed, loggedToday, lastCleanKey: mostRecent, daysSinceLast};
+}
+
+function calcBestStreak(rows) {
+  const cleaned = rows.filter(r=>r.cleaned==='Yes');
+  if (!cleaned.length) return 0;
+  const days = [...new Set(cleaned.map(r=>dayKey(r.date)))].sort();
+  let best=1, cur=1, graceUsed=false;
+  for (let i=1; i<days.length; i++) {
+    const gap = Math.round((new Date(days[i]) - new Date(days[i-1])) / 864e5);
+    if (gap === 1) { cur++; best=Math.max(best,cur); }
+    else if (gap === 2 && !graceUsed) { graceUsed=true; cur++; best=Math.max(best,cur); }
+    else { cur=1; graceUsed=false; }
+  }
+  return best;
+}
+
+function avgStars(rows) {
+  const rated = rows.filter(r=>r.stars&&r.cleaned==='Yes');
+  if (!rated.length) return '—';
+  return (rated.reduce((s,r)=>s+Number(r.stars),0)/rated.length).toFixed(1);
+}
+function bestDayOfWeek(rows) {
+  const cleaned = rows.filter(r=>r.cleaned==='Yes');
+  if (!cleaned.length) return null;
+  const counts = [0,0,0,0,0,0,0];
+  cleaned.forEach(r=>counts[new Date(r.date).getDay()]++);
+  const max = Math.max(...counts);
+  return max===0 ? null : DAYS[counts.indexOf(max)];
+}
+function streakMessage(streak, isAlive, loggedToday, best) {
+  if (!isAlive && streak===0) return best>0 ? `Your best was ${best} days — beat it 👊` : 'Start your first streak today';
+  if (loggedToday && streak>=1) return 'Logged today ✓ Come back tomorrow!';
+  if (streak > best && streak > 0) return '🏆 New personal best — keep going!';
+  if (streak === best && streak > 0) return "Matching your record — don't stop now!";
+  if (streak>=30) return "Absolute machine. Don't break it now.";
+  if (streak>=14) return 'Two weeks in. This is who you are now.';
+  if (streak>=7)  return 'One week 🔥 This is real momentum.';
+  if (streak>=5)  return 'Getting into a rhythm. Stay locked.';
+  if (streak>=3)  return "It's starting to stick. Keep going.";
+  if (streak===2) return "Day 2. Don't let day 3 break it.";
+  if (streak===1) return 'Day 1. The hardest part is starting.';
+  return '';
+}
+
+// ── Streak Showcase (Duolingo-style) ──
+function renderStreakShowcase(streak, info, best, elId='streak-showcase') {
+  const showcase = document.getElementById(elId);
+  if (!showcase) return;
+  if (streak <= 0 && !info.isAlive) { showcase.classList.remove('visible'); return; }
+  showcase.classList.add('visible');
+
+  // Flame state
+  const flame = document.getElementById('showcase-flame');
+  if (flame) {
+    if (info.graceDayAvailable) {
+      flame.textContent = '🧊'; flame.className = 'streak-flame frozen';
+    } else if (!info.isAlive) {
+      flame.textContent = '🔥'; flame.className = 'streak-flame at-risk';
+    } else {
+      flame.textContent = '🔥'; flame.className = 'streak-flame';
+    }
+  }
+
+  const numEl = document.getElementById('showcase-streak-num');
+  if (numEl) { numEl.textContent = streak; numEl.className = `streak-num-big${!info.isAlive?' at-risk':''}`; }
+
+  const pill = document.getElementById('showcase-status-pill');
+  if (pill) {
+    if (info.graceDayAvailable) {
+      pill.textContent = '❄️ Grace Day Active'; pill.className = 'streak-status-pill frozen';
+    } else if (info.loggedToday) {
+      pill.textContent = '🔥 On Fire'; pill.className = 'streak-status-pill alive';
+    } else {
+      pill.textContent = '⚠️ Log before midnight!'; pill.className = 'streak-status-pill at-risk';
+    }
+  }
+
+  // XP bar
+  const xp = calcXP(streak);
+  const lvl = streakLevel(streak);
+  const xpText = document.getElementById('showcase-xp-text');
+  const xpFill = document.getElementById('showcase-xp-fill');
+  if (xpText) xpText.textContent = `${xp} XP`;
+  if (xpFill) xpFill.style.width = `${Math.round(lvl.progress * 100)}%`;
+
+  // Milestone pips
+  const mEl = document.getElementById('showcase-milestones');
+  if (mEl) {
+    mEl.innerHTML = MILESTONES.map(m => {
+      const reached = streak >= m.days;
+      const isNext = !reached && MILESTONES.filter(x => x.days > streak)[0]?.days === m.days;
+      return `<div class="streak-milestone-pip${reached?' reached':''}${isNext?' next':''}">
+        <div class="streak-milestone-icon">${reached ? m.icon : '○'}</div>
+        <div class="streak-milestone-num">${m.days}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Message
+  const msgEl = document.getElementById('already-streak-msg');
+  if (msgEl) msgEl.textContent = streakMessage(streak, info.isAlive, info.loggedToday, best);
+}
+
+// ── Confetti ──
+function launchConfetti(duration=2000) {
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  const colors = ['#F46B1A','#FFB347','#FFF3E0','#C4500E','#FF8C42','#ffffff','#FFD166'];
+  const parts = Array.from({length:100}, ()=>({
+    x: Math.random()*canvas.width, y: Math.random()*canvas.height - canvas.height,
+    r: Math.random()*6+3, color: colors[Math.floor(Math.random()*colors.length)],
+    tiltAngle: 0, tiltAngleInc: Math.random()*0.07+0.05,
+    vx: (Math.random()-0.5)*2, vy: Math.random()*3+2,
+  }));
+  const start = Date.now();
+  (function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    parts.forEach(p=>{
+      p.tiltAngle += p.tiltAngleInc; p.x += p.vx + Math.sin(p.tiltAngle)*0.5; p.y += p.vy;
+      if (p.y > canvas.height) { p.y=-10; p.x=Math.random()*canvas.width; }
+      const tilt = Math.sin(p.tiltAngle)*12;
+      ctx.beginPath(); ctx.lineWidth=p.r; ctx.strokeStyle=p.color;
+      ctx.moveTo(p.x+tilt+p.r/4, p.y); ctx.lineTo(p.x+tilt, p.y+tilt+p.r/4); ctx.stroke();
+    });
+    if (Date.now()-start < duration) requestAnimationFrame(draw);
+    else ctx.clearRect(0,0,canvas.width,canvas.height);
+  })();
+}
+
+// ── Already-logged check ──
+function onNameChange(name) {
+  // Use sheet-merged allData when available, fall back to localStorage
+  const source   = allData.length ? allData : JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');
+  const userRows = source.filter(r=>r.name===name);
+  const todayEntry = userRows.find(r=>dayKey(r.date)===todayKey());
+
+  if (todayEntry) {
+    document.getElementById('form-card').style.display           = 'none';
+    document.getElementById('already-logged-card').style.display = 'flex';
+    document.getElementById('streak-alert').classList.remove('visible');
+    document.getElementById('pre-select-streaks').style.display  = 'none';
+    document.getElementById('pre-select-hint').style.display     = 'none';
+
+    const info = calcStreakInfo(userRows, name), best = calcBestStreak(userRows);
+    renderStreakShowcase(info.streak, info, best);
+    renderCheckinWeekStrip(name);
+
+    document.getElementById('already-logged-msg').textContent =
+      todayEntry.cleaned==='Yes'
+        ? `Logged a clean today, ${name}! 💪`
+        : `Logged a skip today, ${name}. No worries.`;
+  } else {
+    document.getElementById('form-card').style.display           = 'flex';
+    document.getElementById('already-logged-card').style.display = 'none';
+    document.getElementById('streak-showcase').classList.remove('visible');
+    updateStreakAlert(name);
+  }
+}
+document.querySelectorAll('input[name="name"]').forEach(r=>r.addEventListener('change',()=>onNameChange(r.value)));
+
+function showFormAnyway() {
+  document.getElementById('already-logged-card').style.display = 'none';
+  document.getElementById('form-card').style.display           = 'flex';
+}
+
+// ── Weekly summary (Sunday noon+) ──
+function updateWeeklySummary() {
+  const now=new Date(), dow=now.getDay(), hour=now.getHours();
+  if (!(dow===0 && hour>=12)) return;
+  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');
+  const monday = new Date(now); monday.setDate(now.getDate()-6); monday.setHours(0,0,0,0);
+  const weekRows = stored.filter(r=>new Date(r.date)>=monday);
+  const cleanedDays = weekRows.filter(r=>r.cleaned==='Yes').length;
+  const missedDays  = weekRows.filter(r=>r.cleaned==='No').length;
+  const streak = calcStreakInfo(stored, null).streak;
+  document.getElementById('weekly-summary-row').innerHTML=`
+    <div class="weekly-summary-stat"><div class="weekly-summary-val">${cleanedDays}</div><div class="weekly-summary-lbl">Days cleaned</div></div>
+    <div class="weekly-summary-stat"><div class="weekly-summary-val">${missedDays}</div><div class="weekly-summary-lbl">Days skipped</div></div>
+    <div class="weekly-summary-stat"><div class="weekly-summary-val">${streak}</div><div class="weekly-summary-lbl">🔥 Streak</div></div>
+  `;
+  document.getElementById('weekly-summary').classList.add('visible');
+}
+
+// ── Streak alert ──
+function updateStreakAlert(forName) {
+  // Prefer already-merged allData (has sheet data) over raw localStorage
+  const source = allData.length ? allData : JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');
+  const rows = forName ? source.filter(r=>r.name===forName) : source;
+  const info = calcStreakInfo(rows, forName);
+  const alert = document.getElementById('streak-alert');
+  const text  = document.getElementById('streak-alert-text');
+  if (info.streak>=2 && !info.loggedToday) {
+    if (info.graceDayAvailable && forName) {
+      setGraceState(forName, { consumedForDate: info.lastCleanKey });
+    }
+    text.innerHTML = info.graceDayAvailable
+      ? `❄️ Grace day in use — your <span>${info.streak}-day streak</span> is still alive. Log today!`
+      : `Your <span>${info.streak}-day streak</span> is at risk — log before midnight!`;
+    alert.classList.add('visible');
+  } else { alert.classList.remove('visible'); }
+}
+
+// ── Submit ──
+async function handleSubmit() {
+  const nameEl    = document.querySelector('input[name="name"]:checked');
+  const cleanedEl = document.querySelector('input[name="cleaned"]:checked');
+  if (!nameEl || !cleanedEl) return;
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  if (navigator.vibrate) navigator.vibrate(50);
+
+  const entry = {
+    id: crypto.randomUUID(),
+    date: new Date().toISOString(), name: nameEl.value, cleaned: cleanedEl.value,
+    duration: (document.querySelector('input[name="duration"]:checked')||{}).value||'',
+    stars:    (document.querySelector('input[name="stars"]:checked')   ||{}).value||'',
+    notes: document.getElementById('note').value||''
+  };
+  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');
+  stored.push(entry);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+  try { fetch(SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(entry).toString()}).catch(()=>{}); } catch(_){}
+
+  const userRows = stored.filter(r=>r.name===entry.name);
+  const info = calcStreakInfo(userRows, entry.name), best = calcBestStreak(userRows);
+  // Consume grace day if it was being used (last clean was 2 days ago before this log)
+  if (info.streak > 0 && entry.cleaned === 'Yes') {
+    const grace = getGraceState(entry.name);
+    if (grace.consumedForDate) {
+      // Clear consumed state once user logs again
+      setGraceState(entry.name, {});
+    }
+  }
+  showSuccessScreen(entry, info, best, entry.cleaned==='Yes');
+}
+
+function showSuccessScreen(entry, info, best, isCleaned) {
+  document.getElementById('form-fields').style.display = 'none';
+  document.getElementById('submit-btn').style.display  = 'none';
+  document.getElementById('success-msg').style.display = 'flex';
+
+  if (!isCleaned) {
+    document.getElementById('success-icon').textContent  = '😅';
+    document.getElementById('success-title').textContent = 'Logged.';
+    document.getElementById('success-body').textContent  = "No worries — get it tomorrow.";
+    document.getElementById('success-streak-showcase').classList.remove('visible');
+    document.getElementById('xp-gained').style.display = 'none';
+    return;
+  }
+
+  const milestone = MILESTONES.find(m => info.streak === m.days);
+  const milestoneEl = document.getElementById('success-milestone');
+  if (milestone) {
+    milestoneEl.textContent  = milestone.msg;
+    milestoneEl.style.display = 'block';
+    document.getElementById('success-icon').textContent  = milestone.icon;
+    document.getElementById('success-title').textContent = `${milestone.label}!`;
+    if (navigator.vibrate) navigator.vibrate([50,40,50,40,120]);
+    launchConfetti(3500);
+  } else {
+    document.getElementById('success-icon').textContent  = '🧹';
+    document.getElementById('success-title').textContent = 'Logged!';
+    if (info.streak >= 7) launchConfetti(1500);
+    else if (navigator.vibrate) navigator.vibrate([30,50,80]);
+  }
+
+  if (info.streak > 0) {
+    const ss = document.getElementById('success-streak-showcase');
+    ss.classList.add('visible');
+    document.getElementById('success-streak-num').textContent = info.streak;
+  }
+
+  // XP
+  const xpGained = 10 + (info.streak >= 7 ? 20 : info.streak >= 3 ? 10 : 0);
+  const xpEl = document.getElementById('xp-gained');
+  document.getElementById('xp-gained-val').textContent = xpGained;
+  xpEl.style.display = 'inline-flex';
+
+  document.getElementById('success-body').textContent = streakMessage(info.streak, info.isAlive, true, best) || 'Keep it up. See you tomorrow.';
+}
+
+// ── Reset form ──
+function resetForm() {
+  document.querySelectorAll('input[type="radio"]').forEach(r=>r.checked=false);
+  document.getElementById('note').value = '';
+  document.getElementById('form-fields').style.display  = 'flex';
+  document.getElementById('submit-btn').style.display   = 'flex';
+  document.getElementById('submit-btn').disabled        = false;
+  document.getElementById('submit-btn').textContent     = 'Log it →';
+  document.getElementById('success-msg').style.display  = 'none';
+  document.getElementById('success-milestone').style.display = 'none';
+  document.getElementById('success-streak-showcase').classList.remove('visible');
+  document.getElementById('xp-gained').style.display    = 'none';
+  document.getElementById('pre-select-streaks').style.display = 'flex';
+  document.getElementById('pre-select-hint').style.display = 'block';
+  renderPreSelectStreaks();
+  document.getElementById('form-card').style.display    = 'flex';
+  document.getElementById('already-logged-card').style.display = 'none';
+  document.getElementById('streak-showcase').classList.remove('visible');
+}
+
+// ── Navigation ──
+function showStats() {
+  document.getElementById('page-checkin').classList.remove('active');
+  document.getElementById('page-stats').classList.add('active');
+  window.scrollTo(0,0);
+  // Show cached data immediately, then refresh in background
+  if (allData.length) {
+    render();
+  }
+  loadStats(/*background=*/allData.length > 0);
+}
+function showCheckin() {
+  document.getElementById('page-stats').classList.remove('active');
+  document.getElementById('page-checkin').classList.add('active');
+  window.scrollTo(0,0);
+  resetForm(); updateWeeklySummary(); updateStreakAlert();
+}
+
+// ── Pull-to-refresh (only fires when scroll is at top AND user deliberately pulls down) ──
+(function(){
+  let startY = 0, startScrollTop = 0, triggered = false, pulling = false;
+  const page    = document.getElementById('page-stats');
+  const ptr     = document.getElementById('ptr-indicator');
+  const THRESHOLD = 72; // px of deliberate pull needed
+
+  page.addEventListener('touchstart', e => {
+    startY = e.touches[0].clientY;
+    startScrollTop = page.scrollTop;
+    triggered = false;
+    pulling = false;
+  }, { passive: true });
+
+  page.addEventListener('touchmove', e => {
+    const dy = e.touches[0].clientY - startY;
+    // Only activate if we were truly at the top when the touch started
+    if (startScrollTop === 0 && dy > THRESHOLD && !triggered) {
+      triggered = true;
+      pulling = true;
+      ptr.classList.add('pulling');
+    }
+  }, { passive: true });
+
+  page.addEventListener('touchend', () => {
+    if (triggered) {
+      loadStats(/*background=*/false).then(() => {
+        setTimeout(() => { ptr.classList.remove('pulling'); }, 500);
+      });
+    } else {
+      ptr.classList.remove('pulling');
+    }
+    triggered = false;
+    pulling = false;
+  });
+})();
+
+// ── Stats state ──
+let allData = [], currentFilter = 'all', timeRange = 'week', chart = null;
+let statsInitialized = false;
+
+function normaliseSheetRow(row) {
+  const raw = row.date||row[0]||''; const d = new Date(raw);
+  if (isNaN(d.getTime())) return null;
+  return {date:d.toISOString(), name:String(row.name||row[1]||'').trim(), cleaned:String(row.cleaned||row[2]||'').trim(), duration:String(row.duration||row[3]||'').trim(), stars:String(row.stars||row[4]||'').trim(), notes:String(row.notes||row[5]||'').trim(), _src:'sheet'};
+}
+function mergeData(sheetRows, localRows) {
+  // UUID-based dedup: any local entry whose id already appears in sheet rows is skipped.
+  // For legacy entries without an id, fall back to the old ±30 s timestamp window.
+  const sheetIds = new Set(sheetRows.map(r=>r.id).filter(Boolean));
+  const sheetTimes = sheetRows.map(r=>new Date(r.date).getTime());
+  const uniqueLocals = localRows.filter(r => {
+    if (r.id) return !sheetIds.has(r.id);
+    const t = new Date(r.date).getTime();
+    return sheetTimes.every(s => Math.abs(s - t) >= 30000);
+  }).map(r => ({...r, _src:'local'}));
+  return [...sheetRows, ...uniqueLocals];
+}
+
+// background=true → show existing data, refresh silently
+async function loadStats(background = false) {
+  const badge        = document.getElementById('data-source-badge');
+  const inlineSpinner = document.getElementById('inline-refresh-badge');
+  const content      = document.getElementById('stats-content');
+
+  if (background) {
+    // Keep showing current data, just show the small spinner
+    inlineSpinner.classList.add('visible');
+    content.style.display = 'flex';
+  } else {
+    // Full refresh — still keep content visible if we have data
+    if (allData.length) {
+      inlineSpinner.classList.add('visible');
+      content.style.display = 'flex';
+    } else {
+      // Truly first load — show local data immediately
+      const localRows = JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]').filter(r=>r.date).map(r=>({...r,_src:'local'}));
+      allData = localRows;
+      allData.sort((a,b)=>new Date(a.date)-new Date(b.date));
+      if (localRows.length) {
+        badge.className = 'data-source-badge local';
+        badge.textContent = `⏳ Loading… ${localRows.length} local entries`;
+        content.style.display = 'flex';
+        render();
+      }
+      inlineSpinner.classList.add('visible');
+    }
+  }
+
+  // Fetch fresh data
+  const localRows = JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]').filter(r=>r.date).map(r=>({...r,_src:'local'}));
+  let sheetRows = [], synced = false;
+  try {
+    const res = await fetch(SCRIPT_URL+'?t='+Date.now(), {cache:'no-store'});
+    sheetRows = (await res.json()).map(normaliseSheetRow).filter(Boolean);
+    synced = true;
+  } catch(e) { console.warn(e); }
+
+  allData = synced ? mergeData(sheetRows, localRows) : localRows;
+  allData.sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+  if (synced) { badge.className='data-source-badge synced'; badge.textContent=`✓ Synced · ${allData.length} entries`; }
+  else if (localRows.length) { badge.className='data-source-badge local'; badge.textContent='⚠ Offline — local data only'; }
+  else { badge.className='data-source-badge error'; badge.textContent='✗ No data found'; }
+
+  inlineSpinner.classList.remove('visible');
+  content.style.display = 'flex';
+  requestAnimationFrame(()=>requestAnimationFrame(render));
+}
+
+// ── Render ──
+function render() {
+  const emptyState = document.getElementById('stats-empty-state');
+  const content    = document.getElementById('stats-content');
+  if (!allData.length) {
+    emptyState.classList.add('visible');
+    content.style.display = 'none';
+    return;
+  }
+  emptyState.classList.remove('visible');
+  content.style.display = 'flex';
+  const rows = filtered(), cleaned = rows.filter(r=>r.cleaned==='Yes'), total = rows.length;
+  const rate = total ? Math.round((cleaned.length/total)*100) : 0;
+  const info = calcStreakInfo(rows, currentFilter==='all'?null:currentFilter), best = calcBestStreak(rows), avg = avgStars(rows);
+  const msg  = streakMessage(info.streak, info.isAlive, info.loggedToday, best);
+  const grace = info.graceDayAvailable ? `<div class="streak-grace">❄️ Grace day active</div>` : '';
+  document.getElementById('stat-cards').innerHTML=`
+    <div class="stat-card"><div class="stat-label">Days cleaned</div><div class="stat-value">${cleaned.length}</div><div class="stat-sub">of ${total} logged</div></div>
+    <div class="stat-card"><div class="stat-label">Clean rate</div><div class="stat-value">${rate}<span>%</span></div><div class="stat-sub">${rate>=70?'🔥 Great job!':rate>=40?'💪 Keep going':'😅 Room needs help'}</div></div>
+    <div class="stat-card streak-card"><div class="stat-label">🔥 Current streak</div><div class="stat-value stat-accent">${info.streak}</div><div class="stat-sub">day${info.streak!==1?'s':''} in a row</div>${msg?`<div class="streak-msg">${msg}</div>`:''}${grace}</div>
+    <div class="stat-card"><div class="stat-label">🏆 Best streak</div><div class="stat-value">${best}</div><div class="stat-sub">day${best!==1?'s':''} record</div></div>
+    <div class="stat-card stat-card-full"><div class="stat-label">⭐ Avg productivity</div><div class="stat-value">${avg}<span>${avg!=='—'?' / 5':''}</span></div><div class="stat-sub">${avg!=='—'?'★'.repeat(Math.round(Number(avg))):'No ratings yet'}</div></div>
+  `;
+  renderWeekCalendar();
+  renderStreakLeague();
+  renderRivalryCard();
+  renderChart(rows);
+  renderPersonCards();
+  renderRecent(rows);
+}
+
+// ── 7-day calendar strip ──
+function renderWeekCalendar() {
+  const card = document.getElementById('week-calendar-card');
+  const daysEl = document.getElementById('week-cal-days');
+  const countEl = document.getElementById('week-cal-count');
+  if (!card || !daysEl) return;
+
+  const rows = filtered();
+  const cleanedRows = rows.filter(r => r.cleaned === 'Yes');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = dayKey(today);
+  const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  // Build last 7 days starting from today-6 → today
+  let cleanCount = 0;
+  let html = '';
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today); d.setDate(today.getDate() - i);
+    const key = dayKey(d);
+    const isToday = key === todayStr;
+    const isFuture = false; // we only show past 7 days incl today
+    const wasCleaned = cleanedRows.some(r => dayKey(r.date) === key);
+    const wasLogged  = rows.some(r => dayKey(r.date) === key);
+    if (wasCleaned) cleanCount++;
+
+    let dotClass, dotInner;
+    if (isToday) {
+      if (wasCleaned) { dotClass = 'today-clean'; dotInner = '✓'; }
+      else             { dotClass = 'today-pending'; dotInner = '·'; }
+    } else if (wasCleaned) {
+      dotClass = 'clean'; dotInner = '✓';
+    } else {
+      dotClass = 'missed'; dotInner = '';
+    }
+
+    html += `<div class="week-cal-day${isToday?' is-today':''}">
+      <div class="week-cal-dot ${dotClass}">${dotInner}</div>
+      <div class="week-cal-label">${DAY_LABELS[d.getDay()]}</div>
+    </div>`;
+  }
+
+  daysEl.innerHTML = html;
+  countEl.textContent = `${cleanCount}/7 days`;
+  card.style.display = 'block';
+}
+
+
+function renderStreakLeague() {
+  const lR = allData.filter(r=>r.name==='Liam');
+  const jR = allData.filter(r=>r.name==='Josiah');
+  if (!lR.length && !jR.length) { document.getElementById('streak-league-card').classList.remove('visible'); return; }
+  const card = document.getElementById('streak-league-card');
+  card.classList.add('visible');
+
+  const players = [
+    { name:'Liam',   avatar:'🙋', rows:lR },
+    { name:'Josiah', avatar:'🙋', rows:jR },
+  ].map(p => {
+    const info = calcStreakInfo(p.rows, p.name);
+    const best = calcBestStreak(p.rows);
+    const xp   = calcXP(info.streak);
+    return { ...p, streak: info.streak, best, xp, info };
+  }).sort((a,b) => b.xp - a.xp);
+
+  const ranks = ['🥇','🥈'];
+  document.getElementById('league-players').innerHTML = players.map((p, i) => {
+    const nextMilestone = MILESTONES.find(m => m.days > p.streak);
+    const daysToNext = nextMilestone ? nextMilestone.days - p.streak : 0;
+    return `<div class="league-player">
+      <div class="league-rank ${i===0?'gold':'silver'}">${ranks[i]}</div>
+      <div class="league-avatar">${p.avatar}</div>
+      <div class="league-info">
+        <div class="league-name">${p.name}</div>
+        <div class="league-streak-row">
+          <span class="league-streak-val">🔥 ${p.streak}</span>
+          <span class="league-streak-lbl">day streak</span>
+          ${nextMilestone ? `<span style="font-size:10px;color:var(--text-dim);margin-left:4px">· ${daysToNext} to ${nextMilestone.icon}</span>` : '<span style="font-size:10px;color:var(--gold);margin-left:4px">· 👑 Maxed!</span>'}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="league-xp">${p.xp}</div>
+        <div class="league-xp-lbl">XP</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Rivalry card ──
+function renderRivalryCard() {
+  const rc = document.getElementById('rivalry-card');
+  const lR = allData.filter(r=>r.name==='Liam'), jR = allData.filter(r=>r.name==='Josiah');
+  if (!lR.length && !jR.length) { rc.style.display='none'; return; }
+  rc.style.display = 'block';
+  const lS=calcStreakInfo(lR,'Liam').streak, jS=calcStreakInfo(jR,'Josiah').streak;
+  const lRate=lR.length?Math.round((lR.filter(r=>r.cleaned==='Yes').length/lR.length)*100):0;
+  const jRate=jR.length?Math.round((jR.filter(r=>r.cleaned==='Yes').length/jR.length)*100):0;
+  const lB=calcBestStreak(lR), jB=calcBestStreak(jR);
+  const lXP=calcXP(lS), jXP=calcXP(jS);
+  const lWins=(lS>jS?1:0)+(lRate>jRate?1:0)+(lB>jB?1:0)+(lXP>jXP?1:0);
+  const jWins=(jS>lS?1:0)+(jRate>lRate?1:0)+(jB>lB?1:0)+(jXP>lXP?1:0);
+  function cls(a,b,side){ if(a===b)return''; return (side==='l'&&a>b)||(side==='r'&&b>a)?'winner':'loser'; }
+  let overallHtml = '';
+  if (lWins>jWins) overallHtml=`<span class="rivalry-leading">Liam is leading ↑</span>`;
+  else if (jWins>lWins) overallHtml=`<span class="rivalry-leading">Josiah is leading ↑</span>`;
+  else overallHtml=`<span class="rivalry-tie">🤝 Dead even</span>`;
+
+  function statRow(lVal,jVal,label,lW,jW) {
+    return `<div class="rivalry-stat-row">
+      <div class="rivalry-stat-label-row">
+        <span class="rivalry-val-left ${cls(lW,jW,'l')}">${lVal}</span>
+        <span class="rivalry-stat-name">${label}</span>
+        <span class="rivalry-val-right ${cls(jW,lW,'r')}">${jVal}</span>
+      </div>
+      <div class="rivalry-bars">
+        <div class="rivalry-bar left"><div class="rivalry-bar-fill" style="width:${Math.round((lW/Math.max(lW,jW,1))*100)}%"></div></div>
+        <div class="rivalry-bar"><div class="rivalry-bar-fill" style="width:${Math.round((jW/Math.max(lW,jW,1))*100)}%"></div></div>
+      </div>
+    </div>`;
+  }
+
+  rc.innerHTML=`
+    <div class="rivalry-title">⚔️ Head-to-Head</div>
+    <div class="rivalry-header-row"><div class="rivalry-overall">${overallHtml}</div></div>
+    ${statRow(lS+'🔥',jS+'🔥','STREAK',lS,jS)}
+    ${statRow(lRate+'%',jRate+'%','CLEAN RATE',lRate,jRate)}
+    ${statRow(lB+'🏆',jB+'🏆','BEST EVER',lB,jB)}
+    ${statRow(lXP+'⚡',jXP+'⚡','TOTAL XP',lXP,jXP)}
+    <div class="rivalry-names-row">
+      <span class="rivalry-name">Liam <span class="score-badge ${lWins>=jWins?'':'dim'}">${lWins}</span></span>
+      <span class="rivalry-name">Josiah <span class="score-badge ${jWins>=lWins?'':'dim'}">${jWins}</span></span>
+    </div>
+  `;
+}
+
+// ── Chart ──
+function renderChart(rows) {
+  const cleaned = rows.filter(r=>r.cleaned==='Yes');
+  let labels=[], data=[];
+  if (timeRange==='week') {
+    for (let i=6;i>=0;i--) { const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i); const key=dayKey(d); labels.push(d.toLocaleDateString('en-CA',{weekday:'short'})); data.push(cleaned.filter(r=>dayKey(r.date)===key).length); }
+  } else if (timeRange==='month') {
+    for (let i=3;i>=0;i--) { const end=new Date(); end.setHours(23,59,59,999); end.setDate(end.getDate()-i*7); const start=new Date(end); start.setHours(0,0,0,0); start.setDate(start.getDate()-6); labels.push(`${start.getMonth()+1}/${start.getDate()}`); data.push(cleaned.filter(r=>{const rd=new Date(r.date);return rd>=start&&rd<=end;}).length); }
+  } else {
+    for (let i=11;i>=0;i--) { const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i); const yr=d.getFullYear(),mo=d.getMonth(); labels.push(d.toLocaleDateString('en-CA',{month:'short'})); data.push(cleaned.filter(r=>{const rd=new Date(r.date);return rd.getFullYear()===yr&&rd.getMonth()===mo;}).length); }
+  }
+  const isEmpty = data.every(v=>v===0);
+  document.getElementById('chart-empty').classList.toggle('visible', isEmpty);
+  if (chart) { chart.destroy(); chart=null; }
+  const canvas = document.getElementById('activityChart');
+  if (!canvas) return;
+  canvas.width = canvas.parentElement.offsetWidth||300; canvas.height=180;
+  chart = new Chart(canvas,{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:data.map(v=>v>0?'rgba(244,107,26,0.85)':'rgba(244,107,26,0.08)'),borderRadius:8,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:400,easing:'easeInOutQuart'},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw} clean${ctx.raw!==1?'s':''}`},backgroundColor:'#2E1A0E',titleColor:'#F5EDE4',bodyColor:'#C9915F',borderColor:'rgba(244,107,26,0.25)',borderWidth:1,padding:10,cornerRadius:8}},
+      scales:{x:{grid:{display:false},ticks:{color:'#7A5040',font:{size:10,family:'DM Sans'}},border:{display:false}},y:{grid:{color:'rgba(244,107,26,0.06)'},ticks:{color:'#7A5040',font:{size:10},stepSize:1,precision:0},border:{display:false},beginAtZero:true}}}
+  });
+}
+
+// ── Person cards ──
+function renderPersonCards() {
+  document.getElementById('person-cards').innerHTML = ['Liam','Josiah'].map(name => {
+    const rows = allData.filter(r=>r.name===name);
+    const cleaned = rows.filter(r=>r.cleaned==='Yes').length;
+    const rate = rows.length ? Math.round((cleaned/rows.length)*100) : 0;
+    const info = calcStreakInfo(rows, name), best = calcBestStreak(rows), bd = bestDayOfWeek(rows);
+    const xp = calcXP(info.streak);
+    const nextM = MILESTONES.find(m=>m.days>info.streak);
+    return `<div class="person-card">
+      <div class="person-name">${name}</div>
+      <div class="person-stat"><span class="person-stat-label">Cleaned</span><span class="person-stat-val">${cleaned} days</span></div>
+      <div class="person-stat"><span class="person-stat-label">Streak</span><span class="person-stat-val">🔥 ${info.streak}</span></div>
+      <div class="person-stat"><span class="person-stat-label">Best</span><span class="person-stat-val">🏆 ${best}</span></div>
+      <div class="person-stat"><span class="person-stat-label">⚡ XP</span><span class="person-stat-val" style="color:var(--gold)">${xp}</span></div>
+      <div class="person-stat"><span class="person-stat-label">Avg ⭐</span><span class="person-stat-val">${avgStars(rows)}</span></div>
+      ${nextM ? `<div class="best-day-badge">${nextM.icon} ${nextM.days - info.streak}d to ${nextM.label}</div>` : '<div class="best-day-badge">👑 Legend!</div>'}
+      ${bd ? `<div class="best-day-badge" style="margin-top:4px">🗓 Best: ${bd}</div>` : ''}
+      <div class="progress-bar"><div class="progress-fill" style="width:${rate}%"></div></div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:6px">${rate}% clean rate</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Recent log ──
+function renderRecent(rows) {
+  const recent = [...rows].reverse().slice(0,10);
+  if (!recent.length) { document.getElementById('recent-log').innerHTML='<p style="font-size:13px;color:var(--text-dim);padding:16px 0;text-align:center">No entries yet — start logging! 🧹</p>'; return; }
+  document.getElementById('recent-log').innerHTML = recent.map(r=>{
+    const d=new Date(r.date), ok=r.cleaned==='Yes';
+    return `<div class="log-item"><div class="log-dot ${ok?'yes':'no'}"></div><div class="log-info"><div class="log-name">${r.name||'?'}</div><div class="log-meta">${ok?(r.duration||'Cleaned'):'Skipped'}${r.notes?' · '+r.notes.substring(0,30):''}</div></div><div class="log-right"><div class="log-stars">${r.stars?'★'.repeat(Number(r.stars)):''}</div><div class="log-date">${d.toLocaleDateString('en-CA',{weekday:'short',month:'short',day:'numeric'})}</div></div></div>`;
+  }).join('');
+}
+
+function setFilter(name,btn){currentFilter=name;document.querySelectorAll('.filter-tabs .tab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');render();}
+function setTimeRange(range,btn){timeRange=range;document.querySelectorAll('.tr-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderChart(filtered());}
+function filtered(){return currentFilter==='all'?allData:allData.filter(r=>r.name===currentFilter);}
+
+// ── Init ──
+// Pre-load local data into allData so stats page shows immediately
+(function(){
+  const local = JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]').filter(r=>r.date).map(r=>({...r,_src:'local'}));
+  if (local.length) {
+    allData = local.sort((a,b)=>new Date(a.date)-new Date(b.date));
+  }
+})();
+// ── Mini week strip for check-in page (already-logged view) ──
+function renderCheckinWeekStrip(name) {
+  const el = document.getElementById('checkin-week-strip');
+  if (!el) return;
+  const source = allData.length ? allData : JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');
+  const rows = source.filter(r => r.name === name && r.cleaned === 'Yes');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = dayKey(today);
+  const DAY_LABELS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  let html = '';
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today); d.setDate(today.getDate() - i);
+    const key = dayKey(d);
+    const isToday = key === todayStr;
+    const cleaned = rows.some(r => dayKey(r.date) === key);
+    const dotStyle = cleaned
+      ? `background:var(--orange);box-shadow:0 0 8px rgba(244,107,26,0.5);`
+      : `background:transparent;border:2px solid var(--surface3);`;
+    const labelColor = isToday ? 'color:var(--orange)' : 'color:var(--text-dim)';
+    html += `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+      <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;${dotStyle}${isToday&&cleaned?' animation:pulse 1.8s ease-in-out infinite;':''}">${cleaned?'✓':''}</div>
+      <div style="font-size:8px;font-weight:700;letter-spacing:0.04em;${labelColor}">${DAY_LABELS[d.getDay()]}</div>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+
+function applyPreSelectData(dataRows) {
+  ['Liam','Josiah'].forEach(name => {
+    const rows = dataRows.filter(r=>r.name===name);
+    const info = calcStreakInfo(rows, name);
+    const id = name.toLowerCase();
+    const numEl   = document.getElementById(`pss-${id}-num`);
+    const flameEl = document.getElementById(`pss-${id}-flame`);
+    const card    = document.getElementById(`pss-${id}`);
+    if (!numEl) return;
+    numEl.textContent = info.streak;
+    numEl.className   = `pre-select-num${info.streak===0?' zero':''}`;
+    flameEl.textContent = info.streak===0 ? '💤' : info.graceDayAvailable ? '🧊' : '🔥';
+    if (info.streak > 0) card.classList.add('has-streak');
+    else card.classList.remove('has-streak');
+  });
+}
+
+async function renderPreSelectStreaks() {
+  // 1. Show local data immediately so cards aren't blank
+  const local = JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]').filter(r=>r.date);
+  applyPreSelectData(local);
+
+  // 2. Fetch sheet in background and refresh with merged data
+  try {
+    const res = await fetch(SCRIPT_URL+'?t='+Date.now(), {cache:'no-store'});
+    const sheetRows = (await res.json()).map(normaliseSheetRow).filter(Boolean);
+    const merged = mergeData(sheetRows, local);
+    // Cache merged data so onNameChange / updateStreakAlert also benefit
+    if (!allData.length) {
+      allData = merged.sort((a,b)=>new Date(a.date)-new Date(b.date));
+    }
+    applyPreSelectData(merged);
+    updateStreakAlert(); // re-run now that we have real data
+  } catch(e) { /* stay on local data */ }
+}
+
+// Hide pre-select teaser once a name is chosen
+document.querySelectorAll('input[name="name"]').forEach(r => r.addEventListener('change', () => {
+  document.getElementById('pre-select-streaks').style.display = 'none';
+  document.getElementById('pre-select-hint').style.display = 'none';
+}));
+
+updateStreakAlert();
+updateWeeklySummary();
+renderPreSelectStreaks();
+</script>
+</body>
+</html>
